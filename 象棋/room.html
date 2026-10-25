@@ -1,0 +1,3075 @@
+/root/HelloWorld/game_Cchess/templates/game_Cchess/room.html
+
+<!-- 核心前端：棋盘渲染、立体棋子、走子/吃子/将军动画、4 个合成音效、悔棋与议和 UI -->
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="color-scheme" content="only light">
+  <title>房间 {{ room_id }} - 中国象棋</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh;
+      color: #fff;
+    }
+
+    .navbar {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      flex-wrap: nowrap;
+    }
+
+    .navbar a {
+      color: #aaa;
+      text-decoration: none;
+      font-size: 14px;
+      white-space: nowrap;
+    }
+
+    .navbar a:hover {
+      color: #fff;
+    }
+
+    .navbar .room-badge {
+      background: #e94560;
+      padding: 4px 12px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: bold;
+      letter-spacing: 2px;
+      white-space: nowrap;
+    }
+
+    .navbar .user-info {
+      color: #888;
+      font-size: 13px;
+      margin-left: auto;
+      white-space: nowrap;
+    }
+
+    .sound-btn {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #fff;
+      font-size: 15px;
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      cursor: pointer;
+      line-height: 1;
+      padding: 0;
+      flex-shrink: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .sound-btn.off {
+      opacity: 0.4;
+    }
+
+    .container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: calc(100vh - 55px);
+      gap: 40px;
+      padding: 20px;
+    }
+
+    .game-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .board-toast {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      padding: 12px 30px;
+      background: rgba(18, 18, 31, 0.92);
+      border: 2px solid #c62828;
+      border-radius: 10px;
+      color: #ff5252;
+      font-size: 28px;
+      font-weight: bold;
+      letter-spacing: 3px;
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 9999;
+      box-shadow: 0 6px 30px rgba(0, 0, 0, 0.6);
+    }
+    .board-toast.show {
+      animation: toastPop 1.8s ease-out forwards;
+    }
+    @keyframes toastPop {
+      0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+      18%  { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
+      30%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+      75%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+      100% { opacity: 0; transform: translate(-50%, -50%) scale(1.05); }
+    }
+
+
+    #board {
+      background: #dcb35c;
+      border-radius: 8px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+      cursor: pointer;
+      display: block;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+      touch-action: manipulation;
+    }
+
+    .sidebar {
+      width: 250px;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .row-group {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .action-row {
+      display: flex !important;
+      flex-direction: row !important;
+      gap: 10px;
+      width: 100%;
+    }
+
+    .action-row > * {
+      flex: 1;
+    }
+
+    .info-card {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    .info-card h3 {
+      font-size: 14px;
+      color: #888;
+      margin-bottom: 10px;
+    }
+
+    .info-card .value {
+      font-size: 18px;
+      font-weight: bold;
+    }
+
+    .player-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .player-item:last-child {
+      border-bottom: none;
+    }
+
+    .stone {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .stone-red {
+      background: #c0392b;
+    }
+
+    .stone-black {
+      background: #2c3e50;
+    }
+
+    .waiting-text {
+      text-align: center;
+      color: #ffd166;
+      font-size: 22px;
+      font-weight: bold;
+      letter-spacing: 1px;
+      margin-top: 15px;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+    }
+
+    .first-line {
+      text-align: center;
+      color: #ffd166;
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+
+    .timer-card {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 15px 20px;
+      font-size: 13px;
+      color: #bbb;
+      line-height: 1.6;
+      text-align: center;
+    }
+
+    .timer-card .countdown {
+      display: block;
+      font-size: 20px;
+      font-weight: bold;
+      color: #e94560;
+      margin-bottom: 4px;
+    }
+
+    .ready-status {
+      font-size: 12px;
+      color: #2ecc71;
+    }
+
+    .turn-status {
+      font-size: 12px;
+      color: #ffd166;
+      font-weight: bold;
+    }
+
+    .opp-status {
+      font-size: 12px;
+      color: #95a5a6;
+    }
+
+    #moveTimerWrap {
+      margin-top: 8px;
+    }
+
+    .move-timer {
+      font-size: 32px;
+      font-weight: bold;
+      color: #ffd166;
+      line-height: 1.1;
+      text-align: center;
+    }
+
+    .move-timer.opponent {
+      color: #95a5a6;
+    }
+
+    .move-timer.danger {
+      color: #e74c3c;
+      animation: pulse 0.6s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.35; }
+    }
+
+    .move-bar {
+      height: 4px;
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 2px;
+      margin-top: 6px;
+      overflow: hidden;
+    }
+
+    .move-bar-inner {
+      height: 100%;
+      width: 100%;
+      background: #ffd166;
+      border-radius: 2px;
+      transition: width 0.2s linear;
+    }
+
+    .move-bar-inner.danger {
+      background: #e74c3c;
+    }
+
+    .move-tip {
+      font-size: 11px;
+      color: #888;
+      margin-top: 4px;
+      text-align: center;
+    }
+
+    .btn {
+      background: #e94560;
+      color: #fff;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 15px;
+    }
+
+    .btn:hover {
+      background: #ff6b81;
+    }
+
+    .btn-ready-done {
+      background: #2ecc71;
+    }
+
+    .btn-ready-done:hover {
+      background: #27ae60;
+    }
+
+    .btn-action {
+      background: #4a6fa5;
+    }
+
+    .btn-action:hover {
+      background: #5a82bd;
+    }
+
+    .btn-surrender {
+      background: #8e44ad;
+    }
+
+    .btn-surrender:hover {
+      background: #9b59b6;
+    }
+
+    .btn-disabled {
+      background: #444 !important;
+      color: #888 !important;
+      cursor: not-allowed;
+    }
+
+    .btn-hint-on {
+      background: #2ecc71;
+    }
+    .btn-hint-on:hover {
+      background: #27ae60;
+    }
+
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
+    .modal {
+      background: #1a1a2e;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 40px;
+      text-align: center;
+      max-width: 400px;
+      animation: modalIn 0.22s ease-out;
+    }
+
+    @keyframes modalIn {
+      from { opacity: 0; transform: scale(0.92); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    .modal h2 {
+      font-size: 20px;
+      margin-bottom: 15px;
+    }
+
+    .modal p {
+      color: #888;
+      margin-bottom: 25px;
+      font-size: 14px;
+      white-space: pre-line;
+    }
+
+    .modal-buttons {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+    }
+
+    .modal-buttons .btn {
+      min-width: 100px;
+    }
+
+    @media (max-width: 768px) {
+      .navbar {
+        padding: 10px 12px;
+        gap: 10px;
+      }
+
+      .navbar a {
+        font-size: 13px;
+      }
+
+      .navbar .room-badge {
+        font-size: 12px;
+        padding: 3px 8px;
+        letter-spacing: 1px;
+      }
+
+      .navbar .user-info {
+        font-size: 12px;
+      }
+
+      .sound-btn {
+        width: 28px;
+        height: 28px;
+        font-size: 13px;
+      }
+
+      .container {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+        padding: 10px;
+        min-height: calc(100vh - 50px);
+      }
+
+      .sidebar {
+        order: -1;
+        width: 100%;
+        gap: 10px;
+      }
+
+      .row-group {
+        flex-direction: row;
+        gap: 10px;
+      }
+
+      .row-group > * {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .info-card {
+        padding: 12px;
+      }
+
+      .info-card h3 {
+        font-size: 12px;
+        margin-bottom: 6px;
+      }
+
+      .info-card .value {
+        font-size: 16px;
+      }
+
+      .timer-card {
+        padding: 10px 12px;
+        font-size: 11px;
+      }
+
+      .timer-card .countdown {
+        font-size: 17px;
+        margin-bottom: 2px;
+      }
+
+      .player-item {
+        padding: 7px 0;
+        gap: 8px;
+      }
+
+      .stone {
+        width: 16px;
+        height: 16px;
+      }
+
+      .btn {
+        padding: 9px 12px;
+        font-size: 14px;
+        width: 100%;
+      }
+
+      #readyCard {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+
+      #readyCard div {
+        font-size: 11px;
+        margin-top: 6px;
+      }
+
+      .action-row .btn {
+        font-size: 13px;
+        padding: 9px 6px;
+      }
+
+      .move-timer {
+        font-size: 26px;
+      }
+
+      .game-area {
+        flex: 1;
+        min-height: 0;
+        justify-content: center;
+      }
+
+      .waiting-text {
+        font-size: 17px;
+        margin-top: 10px;
+      }
+      .modal {
+        padding: 28px;
+        max-width: 88%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="navbar">
+    <a href="/game_Cchess/Cchess/" onclick="leaveRoom(event)">← 退出房间</a>
+    <span class="room-badge">房间 {{ room_id }}</span>
+    <span class="user-info">玩家：{{ nickname }}</span>
+    <button class="sound-btn" id="soundBtn" onclick="toggleSound(event)">🔊</button>
+  </div>
+
+  <div class="container">
+    <div class="game-area">
+      <canvas id="board" width="600" height="675"></canvas>
+        <div id="boardToast" class="board-toast"></div>
+      <p class="waiting-text" id="waitingText">等待对手加入...</p>
+    </div>
+
+    <div class="sidebar">
+      <div class="row-group">
+        <div class="timer-card" id="timerCard">
+          <span class="countdown" id="countdown">--:--</span>
+          ⏰ 倒计时结束前未开始，房间自动解散
+        </div>
+        <div class="info-card" id="readyCard" style="display:none; text-align:center;">
+          <button class="btn" id="readyBtn" onclick="toggleReady()">准备</button>
+          <div style="font-size:12px; color:#888; margin-top:10px;">双方都准备后自动开始对局</div>
+        </div>
+      </div>
+
+      <div class="row-group">
+        <div class="info-card">
+          <h3>对局信息</h3>
+          <div class="first-line" id="firstLine" style="display:none;"></div>
+          <div class="player-item">
+            <div class="stone stone-red" id="p1Stone"></div>
+            <span id="player1Name">红方</span>
+            <span style="margin-left:auto;" class="ready-status" id="p1Status"></span>
+          </div>
+          <div class="player-item">
+            <div class="stone stone-black" id="p2Stone"></div>
+            <span id="player2Name">等待加入...</span>
+            <span style="margin-left:auto;" class="ready-status" id="p2Status"></span>
+          </div>
+        </div>
+        <div class="info-card">
+          <h3>当前回合</h3>
+          <div class="value" id="turnInfo">-</div>
+          <div id="moveTimerWrap" style="display:none;">
+            <div class="move-timer" id="moveTimer">30</div>
+            <div class="move-bar"><div class="move-bar-inner" id="moveBarInner"></div></div>
+            <div class="move-tip" id="moveTip">剩余思考时间</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row-group" id="actionWrap" style="display:none;">
+        <div class="action-row">
+          <button class="btn btn-action" id="undoBtn" onclick="requestUndo()">悔棋(5)</button>
+          <button class="btn btn-surrender" id="surrenderBtn" onclick="requestSurrender()">投降</button>
+          <button class="btn btn-action" id="drawBtn" onclick="requestDraw()">议和(2)</button>
+        </div>
+        <div class="action-row" style="margin-top:8px;">
+          <button class="btn btn-action" id="safeHintBtn" onclick="toggleSafeHint()">安全提示：开</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal">
+    <div class="modal">
+      <h2 id="modalTitle">提示</h2>
+      <p id="modalText"></p>
+      <div class="modal-buttons">
+        <button class="btn" id="modalBtn2" onclick="handleModalCancel()" style="display:none;">拒绝</button>
+        <button class="btn" id="modalBtn" onclick="handleModalConfirm()">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const roomId = '{{ room_id }}';
+    const nickname = '{{ nickname|escapejs }}';
+    const isOwner = {{ is_owner|yesno:"true,false" }};
+
+    const BOARD_W = 9;
+    const BOARD_H = 10;
+    const PIECE_TEXT = {
+      1: ['帥', '將'],
+      2: ['仕', '士'],
+      3: ['相', '象'],
+      4: ['車', '車'],
+      5: ['馬', '馬'],
+      6: ['炮', '砲'],
+      7: ['兵', '卒']
+    };
+
+    // ========== 音效模块 ==========
+    let audioCtx = null;
+    let soundOn = true;
+
+    try {
+      const s = localStorage.getItem('cchess_sound');
+      if (s !== null) soundOn = (s === '1');
+    } catch (e) {}
+
+    function ensureAudio() {
+      if (!soundOn) return null;
+      try {
+        if (!audioCtx) {
+          const AC = window.AudioContext || window.webkitAudioContext;
+          if (!AC) return null;
+          audioCtx = new AC();
+        }
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        return audioCtx;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    document.addEventListener('touchstart', function () {
+      ensureAudio();
+    }, { once: true, passive: true });
+
+    document.addEventListener('click', function () {
+      ensureAudio();
+    }, { once: true });
+
+    function playTone(freq, dur, type, vol, delay) {
+      const ctx = ensureAudio();
+      if (!ctx) return;
+      try {
+        const t0 = ctx.currentTime + (delay || 0);
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = type || 'sine';
+        osc.frequency.setValueAtTime(freq, t0);
+        gain.gain.setValueAtTime(0, t0);
+        gain.gain.linearRampToValueAtTime(vol || 0.25, t0 + 0.005);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t0 + (dur || 0.12));
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(t0);
+        osc.stop(t0 + (dur || 0.12) + 0.02);
+      } catch (e) {}
+    }
+
+    function sfxPlace() {
+      playTone(760, 0.09, 'triangle', 0.28, 0);
+    }
+
+    function sfxStart() {
+      playTone(523.25, 0.14, 'triangle', 0.24, 0);
+      playTone(783.99, 0.30, 'triangle', 0.24, 0.13);
+    }
+
+    function sfxWin() {
+      playTone(523.25, 0.16, 'triangle', 0.26, 0);
+      playTone(659.25, 0.16, 'triangle', 0.26, 0.14);
+      playTone(783.99, 0.36, 'triangle', 0.30, 0.28);
+    }
+    function sfxLose() {
+      playTone(392.00, 0.20, 'sine', 0.24, 0);
+      playTone(261.63, 0.42, 'sine', 0.24, 0.18);
+    }
+
+    function sfxClick() {
+      playTone(1200, 0.04, 'square', 0.07, 0);
+    }
+
+    function sfxTick() {
+      playTone(1000, 0.05, 'square', 0.09, 0);
+    }
+
+    function sfxJoin() {
+      playTone(587.33, 0.10, 'sine', 0.20, 0);
+      playTone(880.00, 0.14, 'sine', 0.20, 0.10);
+    }
+
+    function sfxNotify() {
+      playTone(740, 0.12, 'sine', 0.18, 0);
+      playTone(988, 0.14, 'sine', 0.18, 0.12);
+    }
+
+    function playNoise(dur, vol, delay, filterFreq) {
+      const ctx = ensureAudio();
+      if (!ctx) return;
+      try {
+        const t0 = ctx.currentTime + (delay || 0);
+        const len = Math.max(1, Math.floor(ctx.sampleRate * dur));
+        const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        const f = ctx.createBiquadFilter();
+        f.type = 'bandpass';
+        f.frequency.value = filterFreq || 1200;
+        f.Q.value = 0.8;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(vol || 0.2, t0);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+        src.connect(f); f.connect(g); g.connect(ctx.destination);
+        src.start(t0);
+        src.stop(t0 + dur + 0.02);
+      } catch (e) {}
+    }
+
+    // 落子：木质"嗒"（不吃不将时）
+    function sfxMove() {
+      playTone(190, 0.085, 'triangle', 0.30, 0);
+      playNoise(0.045, 0.14, 0, 2600);
+    }
+
+    // 吃子：撞击 + 碎裂（与碎裂动画同时）
+    function sfxCapture() {
+      playTone(150, 0.16, 'square', 0.26, 0);
+      playTone(95, 0.22, 'triangle', 0.22, 0.02);
+      playNoise(0.22, 0.20, 0.01, 1500);
+    }
+
+    // 将军：两声短警报，只播一轮
+    function sfxCheck() {
+      playTone(880, 0.13, 'square', 0.20, 0);
+      playTone(660, 0.16, 'square', 0.20, 0.15);
+    }
+
+    // 绝杀：下行滑音 + 低频重击
+    function sfxMate() {
+      const ctx = ensureAudio();
+      if (!ctx) return;
+      try {
+        const t0 = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(220, t0);
+        osc.frequency.exponentialRampToValueAtTime(70, t0 + 0.6);
+        g.gain.setValueAtTime(0, t0);
+        g.gain.linearRampToValueAtTime(0.26, t0 + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.7);
+        osc.connect(g); g.connect(ctx.destination);
+        osc.start(t0); osc.stop(t0 + 0.72);
+      } catch (e) {}
+      playTone(80, 0.30, 'sine', 0.28, 0.02);
+    }
+
+    function toggleSound(e) {
+      if (e) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+      soundOn = !soundOn;
+      try {
+        localStorage.setItem('cchess_sound', soundOn ? '1' : '0');
+      } catch (err) {}
+      const b = document.getElementById('soundBtn');
+      b.textContent = soundOn ? '🔊' : '🔇';
+      b.classList.toggle('off', !soundOn);
+      if (soundOn) sfxClick();
+    }
+
+    // ========== 全局状态 ==========
+    let ws = null;
+    let pingTimer = null;
+    let syncTimer = null;
+    let remainSeconds = 0;
+    let countdownTimer = null;
+    let myReady = false;
+    let roomStatus = 'waiting';
+    let opponentLost = false;
+    let statusToast = '';
+    let toastTimer = null;
+    let selfLeaving = false;
+
+    let board = [];
+    let currentTurn = '';
+    let winner = '';
+    let overReason = '';
+    let gameOverShown = false;
+    let ownerName = '';
+    let player2Name = '';
+    let redPlayer = '';
+    let firstMode = 'owner_red';
+    let lastX = -1;
+    let lastY = -1;
+    let lastFromX = -1;
+    let lastFromY = -1;
+    let selX = -1;
+    let selY = -1;
+    let selMoves = [];
+    let checkedRed = false;
+    let checkedBlack = false;
+    let deadKing = null;
+    let centerText = '';
+    let checkAnimOn = false;
+
+    let checkPhase = 0;
+    let pendingToastText = '';
+    let pendingCaptureToast = '';
+    let pendingSfx = '';
+    let pendingOverPrompt = false;
+    let captAnim = null;
+    let captAnimOn = false;
+    const CAPT_MS = 240;
+
+    let moveAnim = null;
+    let moveAnimOn = false;
+    let safeHintOn = true;
+    let safeGreen = [];
+    let safeRed = [];
+    try {
+      const sh = localStorage.getItem('cchess_safehint');
+      if (sh !== null) safeHintOn = (sh === '1');
+    } catch (e) {}
+    let overDelayTimer = null;
+    let undoPendingBy = '';
+    let undoHintTimer = null;
+    let undoLocked = false;
+    let drawPendingBy = '';
+    let drawLeft = 2;
+    let drawCountdownTimer = null;
+    let drawReplyTimer = null;
+    let undoCountdownTimer = null;
+    let undoLeft = 5;
+    let moveDeadline = 0;
+    let moveTimerInterval = null;
+    let lastTickSec = -1;
+    let moveTotal = 30;
+    let iAmRed = false;
+
+    const canvas = document.getElementById('board');
+    const ctx = canvas.getContext('2d');
+    let CELL = 40;
+    let PAD_X = 20;
+    let PAD_Y = 20;
+    let viewW = 600;
+    let viewH = 675;
+    const mqNarrow = window.matchMedia('(max-width: 768px)');
+
+    // ========== 通用工具 ==========
+    function wsReady() {
+      return !!ws && ws.readyState === WebSocket.OPEN;
+    }
+
+    function refreshToastDone() {
+      statusToast = '';
+      if (wsReady()) ws.send(JSON.stringify({ action: 'sync_state' }));
+    }
+
+    function setWaitingText(t) {
+      if (statusToast) return;
+      document.getElementById('waitingText').textContent = t;
+    }
+
+    function showToast(t, sec) {
+      statusToast = t;
+      const el = document.getElementById('waitingText');
+      el.style.display = 'block';
+      el.textContent = t;
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(refreshToastDone, (sec || 3) * 1000);
+    }
+
+    function startMoveTimer(left) {
+      stopMoveTimer();
+      if (!left || left <= 0) return;
+      moveDeadline = Date.now() / 1000 + left;
+      lastTickSec = -1;
+      updateMoveTimer();
+      moveTimerInterval = setInterval(updateMoveTimer, 200);
+    }
+
+    function stopMoveTimer() {
+      if (moveTimerInterval) {
+        clearInterval(moveTimerInterval);
+        moveTimerInterval = null;
+      }
+      moveDeadline = 0;
+      lastTickSec = -1;
+      document.getElementById('moveTimerWrap').style.display = 'none';
+    }
+
+    function updateMoveTimer() {
+      const wrap = document.getElementById('moveTimerWrap');
+      if (!moveDeadline || roomStatus !== 'playing' || winner || undoPendingBy) {
+        wrap.style.display = 'none';
+        return;
+      }
+      const left = moveDeadline - Date.now() / 1000;
+      if (left <= 0) {
+        wrap.style.display = 'none';
+        return;
+      }
+      wrap.style.display = 'block';
+
+      const secs = Math.ceil(left);
+      const el = document.getElementById('moveTimer');
+      const bar = document.getElementById('moveBarInner');
+      const tip = document.getElementById('moveTip');
+      el.textContent = secs;
+      bar.style.width = Math.max(0, Math.min(100, (left / moveTotal) * 100)) + '%';
+
+      const mine = (currentTurn === nickname);
+      const danger = (secs <= 5);
+      el.className = 'move-timer' + (mine ? '' : ' opponent') + (danger ? ' danger' : '');
+      bar.className = 'move-bar-inner' + (danger ? ' danger' : '');
+      tip.textContent = mine ? '你的剩余思考时间' : '对手思考中';
+
+      if (mine && danger) {
+        if (secs !== lastTickSec) {
+          lastTickSec = secs;
+          sfxTick();
+        }
+      } else {
+        lastTickSec = -1;
+      }
+    }
+
+    function applyMoveTimer(left, total) {
+      if (total) moveTotal = total;
+      if (roomStatus === 'playing' && !winner && !undoPendingBy && left > 0) {
+        startMoveTimer(left);
+      } else {
+        stopMoveTimer();
+      }
+    }
+
+    // ========== 坐标转换 ==========
+    function toView(x, y) {
+      return iAmRed ? [x, y] : [BOARD_W - 1 - x, BOARD_H - 1 - y];
+    }
+
+    function fromView(vx, vy) {
+      return iAmRed ? [vx, vy] : [BOARD_W - 1 - vx, BOARD_H - 1 - vy];
+    }
+
+    function px(x) {
+      return PAD_X + x * CELL;
+    }
+
+    function py(y) {
+      return PAD_Y + y * CELL;
+    }
+
+    // ========== 棋盘渲染 ==========
+    function resizeBoard() {
+      if (mqNarrow.matches) {
+        const area = document.querySelector('.game-area');
+        const wt = document.getElementById('waitingText');
+        let aw = area.clientWidth;
+        let ah = area.clientHeight - wt.offsetHeight - 24;
+        let w = aw;
+        let h = ah;
+        if (w / h > 8 / 9) {
+          w = h * 8 / 9;
+        } else {
+          h = w * 9 / 8;
+        }
+        viewW = Math.max(240, w);
+        viewH = viewW * 9 / 8;
+      } else {
+        viewH = Math.min(675, window.innerHeight - 140);
+        viewW = viewH * 8 / 9;
+      }
+
+      const dpr = Math.min(window.devicePixelRatio || 1, 3);
+      canvas.width = Math.round(viewW * dpr);
+      canvas.height = Math.round(viewH * dpr);
+      canvas.style.width = viewW + 'px';
+      canvas.style.height = viewH + 'px';
+
+      CELL = Math.min(viewW / 9.4, viewH / 10.4);
+      PAD_X = (viewW - 8 * CELL) / 2;
+      PAD_Y = (viewH - 9 * CELL) / 2;
+
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      renderBoard();
+    }
+
+    function initBoard() {
+      board = [];
+      for (let i = 0; i < BOARD_W; i++) {
+        board.push(new Array(BOARD_H).fill(0));
+      }
+      lastX = -1;
+      lastY = -1;
+    }
+
+    // 兵卒 / 炮位 标记点（逻辑坐标）
+    const MARK_POINTS = [];
+    (function () {
+      for (const x of [1, 7]) {
+        MARK_POINTS.push([x, 2]);
+        MARK_POINTS.push([x, 7]);
+      }
+      for (const x of [0, 2, 4, 6, 8]) {
+        MARK_POINTS.push([x, 3]);
+        MARK_POINTS.push([x, 6]);
+      }
+    })();
+
+    // 空心十字标记：四个 L 形直角，中心留空、四边开口
+    function drawPositionMarkers() {
+      const gap = CELL * 0.07;
+      const len = CELL * 0.16;
+      ctx.strokeStyle = '#8B6914';
+      ctx.lineWidth = Math.max(1, viewW / 600);
+
+      for (const lp of MARK_POINTS) {
+        const p = toView(lp[0], lp[1]);
+        const vx = p[0];
+        const cx = px(vx);
+        const cy = py(p[1]);
+
+        // 边线上的点只画"半个"（仅棋盘内侧的两个角标）
+        const corners = [];
+        if (vx !== 0) {
+          corners.push([-1, -1]);
+          corners.push([-1, 1]);
+        }
+        if (vx !== BOARD_W - 1) {
+          corners.push([1, -1]);
+          corners.push([1, 1]);
+        }
+
+        for (const d of corners) {
+          const dx = d[0];
+          const dy = d[1];
+          const ax = cx + dx * gap;
+          const ay = cy + dy * gap;
+          ctx.beginPath();
+          ctx.moveTo(ax + dx * len, ay);
+          ctx.lineTo(ax, ay);
+          ctx.lineTo(ax, ay + dy * len);
+          ctx.stroke();
+        }
+      }
+    }
+
+    function drawBoardBg() {
+      ctx.fillStyle = '#dcb35c';
+      ctx.fillRect(0, 0, viewW, viewH);
+      ctx.strokeStyle = '#8B6914';
+
+      const thin = Math.max(1, viewW / 500);
+      const thick = Math.max(1.6, viewW / 330);
+
+      // 横线：上下两条加粗，形成长方形的上下边
+      for (let y = 0; y < BOARD_H; y++) {
+        const p = toView(0, y);
+        const q = toView(BOARD_W - 1, y);
+        ctx.lineWidth = (y === 0 || y === BOARD_H - 1) ? thick : thin;
+        ctx.beginPath();
+        ctx.moveTo(px(p[0]), py(p[1]));
+        ctx.lineTo(px(q[0]), py(q[1]));
+        ctx.stroke();
+      }
+
+      // 竖线：最外两列贯通（河界处不断开 → 左右封口），中间列仍在河界断开
+      for (let x = 0; x < BOARD_W; x++) {
+        const isEdge = (x === 0 || x === BOARD_W - 1);
+        ctx.lineWidth = isEdge ? thick : thin;
+        if (isEdge) {
+          const a = toView(x, 0);
+          const b = toView(x, BOARD_H - 1);
+          ctx.beginPath();
+          ctx.moveTo(px(a[0]), py(a[1]));
+          ctx.lineTo(px(b[0]), py(b[1]));
+          ctx.stroke();
+        } else {
+          const a = toView(x, 0);
+          const b = toView(x, 4);
+          ctx.beginPath();
+          ctx.moveTo(px(a[0]), py(a[1]));
+          ctx.lineTo(px(b[0]), py(b[1]));
+          ctx.stroke();
+
+          const c = toView(x, 5);
+          const d = toView(x, BOARD_H - 1);
+          ctx.beginPath();
+          ctx.moveTo(px(c[0]), py(c[1]));
+          ctx.lineTo(px(d[0]), py(d[1]));
+          ctx.stroke();
+        }
+      }
+
+      // 九宫斜线
+      ctx.lineWidth = thin;
+      const diag = (x1, y1, x2, y2) => {
+        const p = toView(x1, y1);
+        const q = toView(x2, y2);
+        ctx.beginPath();
+        ctx.moveTo(px(p[0]), py(p[1]));
+        ctx.lineTo(px(q[0]), py(q[1]));
+        ctx.stroke();
+      };
+      diag(3, 0, 5, 2);
+      diag(5, 0, 3, 2);
+      diag(3, 7, 5, 9);
+      diag(5, 7, 3, 9);
+
+      // 兵卒 / 炮位 空心十字标记
+      drawPositionMarkers();
+
+      // 楚河汉界：往中间移一格
+      const midY = (py(4) + py(5)) / 2;
+
+      ctx.fillStyle = '#8B6914';
+      const fsR = Math.round(CELL * 0.55);
+      ctx.font = 'bold ' + fsR + 'px "PingFang SC","Microsoft YaHei",serif';
+      ctx.textAlign = 'center';
+      fillTextVCentered('楚 河', px(2), midY, fsR);
+      fillTextVCentered('漢 界', px(6), midY, fsR);
+
+    }
+
+    // 精确垂直居中：按字形实际包围盒算基线
+    // （textBaseline='middle' 是 em 盒居中，中文字形底部留白多 → 视觉偏上，
+    //   且各浏览器/各尺寸表现不一致，故改为实测）
+    function fillTextVCentered(text, cx, cy, fontSize) {
+      const m = ctx.measureText(text);
+      const asc = m.actualBoundingBoxAscent;
+      const desc = m.actualBoundingBoxDescent;
+      let baselineY;
+      if (typeof asc === 'number' && typeof desc === 'number' && (asc + desc) > 0) {
+        baselineY = cy + (asc - desc) / 2;
+      } else {
+        baselineY = cy + fontSize * 0.35;   // 老浏览器兜底
+      }
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillText(text, cx, baselineY);
+    }
+
+    // ===== 立体棋子：离屏预渲染 + 缓存 =====
+    let pieceCache = {};      // key: v + '_' + isDead
+    let pieceCacheCell = 0;
+
+    function renderPieceTo(c, v, isDead, r) {
+      const isRed = (v > 0);
+      const t = PIECE_TEXT[Math.abs(v)];
+      const ch = t ? (isRed ? t[0] : t[1]) : '?';
+      const main = isDead ? '#9b9186' : (isRed ? '#c0392b' : '#2c3e50');
+      const dark = isDead ? '#6f675e' : (isRed ? '#8e2b21' : '#1b2733');
+
+      // 侧面厚度：下移一点的深色圆
+      c.save();
+      c.beginPath();
+      c.arc(0, r * 0.10, r, 0, Math.PI * 2);
+      c.fillStyle = dark;
+      c.fill();
+      c.restore();
+
+      // 主体：径向渐变（光从左上）
+      const g = c.createRadialGradient(-r * 0.32, -r * 0.38, r * 0.10, 0, 0, r * 1.12);
+      g.addColorStop(0, '#fffaf0');
+      g.addColorStop(0.45, '#f7e7c8');
+      g.addColorStop(1, '#d8c39a');
+      c.save();
+      c.beginPath();
+      c.arc(0, 0, r, 0, Math.PI * 2);
+      c.fillStyle = g;
+      c.fill();
+      c.restore();
+
+      // 外圈描边
+      c.save();
+      c.beginPath();
+      c.arc(0, 0, r, 0, Math.PI * 2);
+      c.lineWidth = Math.max(1.5, r * 0.115);
+      c.strokeStyle = main;
+      c.stroke();
+      c.restore();
+
+      // 内圈
+      c.save();
+      c.beginPath();
+      c.arc(0, 0, r * 0.80, 0, Math.PI * 2);
+      c.lineWidth = Math.max(1, r * 0.055);
+      c.strokeStyle = main;
+      c.stroke();
+      c.restore();
+
+      // 下缘暗弧
+      c.save();
+      c.beginPath();
+      c.arc(0, 0, r * 0.93, Math.PI * 0.15, Math.PI * 0.85);
+      c.lineWidth = Math.max(1, r * 0.10);
+      c.strokeStyle = 'rgba(0,0,0,0.16)';
+      c.stroke();
+      c.restore();
+
+      // 左上高光弧
+      c.save();
+      c.beginPath();
+      c.arc(0, 0, r * 0.90, Math.PI * 1.12, Math.PI * 1.62);
+      c.lineWidth = Math.max(1, r * 0.11);
+      c.strokeStyle = 'rgba(255,255,255,0.55)';
+      c.stroke();
+      c.restore();
+
+      // 文字 + 轻微浮雕
+      const fs = Math.round(r * 1.30);
+      c.textAlign = 'center';
+      c.font = 'bold ' + fs + 'px "PingFang SC","Microsoft YaHei",serif';
+      const m = c.measureText(ch);
+      const asc = m.actualBoundingBoxAscent;
+      const desc = m.actualBoundingBoxDescent;
+      let baselineY;
+      if (typeof asc === 'number' && typeof desc === 'number' && (asc + desc) > 0) {
+        baselineY = (asc - desc) / 2;
+      } else {
+        baselineY = fs * 0.35;
+      }
+      c.textBaseline = 'alphabetic';
+      c.save();
+      c.fillStyle = 'rgba(255,255,255,0.5)';
+      c.fillText(ch, 0, baselineY + r * 0.055);
+      c.fillStyle = main;
+      c.fillText(ch, 0, baselineY);
+      c.restore();
+    }
+
+    function getPieceSprite(v, isDead) {
+      const key = v + '_' + (isDead ? '1' : '0');
+      if (pieceCacheCell !== CELL) {
+        pieceCache = {};
+        pieceCacheCell = CELL;
+      }
+      if (pieceCache[key]) return pieceCache[key];
+      const r = CELL * 0.44;
+      const pad = Math.ceil(r * 0.35);
+      const size = Math.ceil(r * 2 + pad * 2);
+      const dpr = (window.devicePixelRatio || 1);
+      const cv = document.createElement('canvas');
+      cv.width = Math.ceil(size * dpr);
+      cv.height = Math.ceil(size * dpr);
+      const c = cv.getContext('2d');
+      c.scale(dpr, dpr);
+      c.translate(size / 2, size / 2);
+      renderPieceTo(c, v, isDead, r);
+      pieceCache[key] = { canvas: cv, size: size };
+      return pieceCache[key];
+    }
+
+    function blitPiece(cx, cy, v, isDead) {
+      const sp = getPieceSprite(v, isDead);
+      ctx.drawImage(sp.canvas, cx - sp.size / 2, cy - sp.size / 2, sp.size, sp.size);
+    }
+
+    function drawPiece(lx, ly, v) {
+      const p = toView(lx, ly);
+      const cx = px(p[0]);
+      const cy = py(p[1]);
+      const r = CELL * 0.44;
+      const isRed = (v > 0);
+      const t = PIECE_TEXT[Math.abs(v)];
+      const isDead = deadKing && deadKing[0] === lx && deadKing[1] === ly;
+      const ch = t ? (isRed ? t[0] : t[1]) : '?';
+      // 底部投影
+      ctx.save();
+      ctx.globalAlpha = 0.22;
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.ellipse(cx, cy + r * 0.30, r * 0.92, r * 0.30, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      blitPiece(cx, cy, v, isDead);
+
+    }
+
+    function computeSafeHints() {
+      safeGreen = [];
+      safeRed = [];
+      if (roomStatus !== 'playing' || winner) return;
+      const meRed = iAmRed;
+      const oppRed = !meRed;
+
+      // 绿：敌方的子，我能吃且吃后不会被立刻反吃
+      for (let x = 0; x < BOARD_W; x++) {
+        for (let y = 0; y < BOARD_H; y++) {
+          const ev = board[x][y];
+          if (!ev) continue;
+          if ((ev > 0) !== oppRed) continue;
+          if (Math.abs(ev) === 1) continue;
+          let safe = false;
+          for (let sx = 0; sx < BOARD_W && !safe; sx++) {
+            for (let sy = 0; sy < BOARD_H && !safe; sy++) {
+              const pv = board[sx][sy];
+              if (!pv) continue;
+              if ((pv > 0) !== meRed) continue;
+              const mv = genMovesFor(board, sx, sy);
+              let canCap = false;
+              for (let i = 0; i < mv.length; i++) {
+                if (mv[i][0] === x && mv[i][1] === y) { canCap = true; break; }
+              }
+              if (!canCap) continue;
+              const nb = boardCopy(board);
+              nb[sx][sy] = 0;
+              nb[x][y] = pv;
+              if (isChecked(nb, meRed)) continue;
+              if (!squareAttacked(nb, oppRed, x, y)) safe = true;
+            }
+          }
+          if (safe) safeGreen.push([x, y]);
+        }
+      }
+
+      // 红：我方的子，敌方能吃且吃后我无法立刻反吃
+      for (let x = 0; x < BOARD_W; x++) {
+        for (let y = 0; y < BOARD_H; y++) {
+          const myv = board[x][y];
+          if (!myv) continue;
+          if ((myv > 0) !== meRed) continue;
+          if (Math.abs(myv) === 1) continue;
+          let danger = false;
+          for (let ox = 0; ox < BOARD_W && !danger; ox++) {
+            for (let oy = 0; oy < BOARD_H && !danger; oy++) {
+              const ov = board[ox][oy];
+              if (!ov) continue;
+              if ((ov > 0) !== oppRed) continue;
+              const mv = genMovesFor(board, ox, oy);
+              let canCap = false;
+              for (let i = 0; i < mv.length; i++) {
+                if (mv[i][0] === x && mv[i][1] === y) { canCap = true; break; }
+              }
+              if (!canCap) continue;
+              const nb = boardCopy(board);
+              nb[ox][oy] = 0;
+              nb[x][y] = ov;
+              if (isChecked(nb, oppRed)) continue;
+              if (!squareAttacked(nb, meRed, x, y)) danger = true;
+            }
+          }
+          if (danger) safeRed.push([x, y]);
+        }
+      }
+    }
+
+    function drawSafeRing(lx, ly, color) {
+      const p = toView(lx, ly);
+      const cx = px(p[0]);
+      const cy = py(p[1]);
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = Math.max(1.6, viewW / 420);
+      ctx.globalAlpha = 0.9;
+      ctx.beginPath();
+      ctx.arc(cx, cy, CELL * 0.50, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function updateSafeHintBtn() {
+      const b = document.getElementById('safeHintBtn');
+      if (!b) return;
+      b.textContent = '安全提示：' + (safeHintOn ? '开' : '关');
+      b.classList.toggle('btn-hint-on', safeHintOn);
+    }
+
+    function toggleSafeHint() {
+      sfxClick();
+      safeHintOn = !safeHintOn;
+      try {
+        localStorage.setItem('cchess_safehint', safeHintOn ? '1' : '0');
+      } catch (e) {}
+      updateSafeHintBtn();
+      renderBoard();
+    }
+
+    // 四角 L 形角标：正方形边框只留四个角（取景框样式）
+    // half = 半边长(0.44格 → 边长=棋子直径)，arm = 每个角沿边保留的长度
+    function drawCornerBox(lx, ly, color, half, arm) {
+      const p = toView(lx, ly);
+      const cx = px(p[0]);
+      const cy = py(p[1]);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = Math.max(2, viewW / 300);
+      const corners = [[-1, -1], [1, -1], [-1, 1], [1, 1]];
+      for (const d of corners) {
+        const dx = d[0];
+        const dy = d[1];
+        const ax = cx + dx * half;
+        const ay = cy + dy * half;
+        ctx.beginPath();
+        ctx.moveTo(ax - dx * arm, ay);
+        ctx.lineTo(ax, ay);
+        ctx.lineTo(ax, ay - dy * arm);
+        ctx.stroke();
+      }
+    }
+
+    // 将军红圈：呼吸（浅↔深）
+    function drawCheckRing(lx, ly) {
+      const p = toView(lx, ly);
+      const cx = px(p[0]);
+      const cy = py(p[1]);
+      const s = Math.sin(checkPhase * Math.PI * 2 / 1.5);
+      const a = 0.45 + 0.35 * s;
+      const r = CELL * 0.46 + CELL * 0.05 * ((s + 1) / 2);
+      ctx.save();
+      ctx.globalAlpha = a;
+      ctx.strokeStyle = '#ff1744';
+      ctx.lineWidth = Math.max(2.5, viewW / 250);
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function startCheckAnim() {
+      if (checkAnimOn) return;
+      checkAnimOn = true;
+      const t0 = Date.now();
+      function loop() {
+        if (!checkAnimOn) return;
+        checkPhase = (Date.now() - t0) / 1000;
+        renderBoard();
+        requestAnimationFrame(loop);
+      }
+      requestAnimationFrame(loop);
+    }
+
+    function stopCheckAnim() {
+      checkAnimOn = false;
+      checkPhase = 0;
+      renderBoard();
+    }
+
+    function updateDeadKing() {
+      deadKing = null;
+      if (!winner) return;
+      if (overReason !== 'checkmate' && overReason !== 'stalemate') return;
+      const winnerIsMe = (winner === nickname);
+      const winnerIsRed = winnerIsMe ? iAmRed : !iAmRed;
+      deadKing = findKing(board, !winnerIsRed);
+    }
+
+    function updateCenterText() {
+      // 河界不再常驻文字
+      centerText = '';
+    }
+
+    function showBoardToast(text, ms) {
+      const el = document.getElementById('boardToast');
+      if (!el) return;
+      const cv = document.getElementById('board');
+      if (cv) {
+        const rc = cv.getBoundingClientRect();
+        el.style.left = (rc.left + rc.width / 2) + 'px';
+        el.style.top = (rc.top + rc.height / 2) + 'px';
+        // 字号按棋盘宽度等比，并设上限（电脑端不会过大）
+        const fs = Math.max(20, Math.min(32, Math.round(rc.width * 0.075)));
+        el.style.fontSize = fs + 'px';
+        el.style.padding = Math.round(fs * 0.42) + 'px ' + Math.round(fs * 1.05) + 'px';
+        el.style.letterSpacing = Math.round(fs * 0.12) + 'px';
+        el.style.borderRadius = Math.round(fs * 0.32) + 'px';
+        el.style.borderWidth = Math.max(2, Math.round(fs / 15)) + 'px';
+      }
+      el.style.animationDuration = (ms || 1800) + 'ms';
+      el.textContent = text;
+      el.classList.remove('show');
+      void el.offsetWidth;
+      el.classList.add('show');
+    }
+    function updateCheckStatus(silent) {
+      const prevRed = checkedRed;
+      const prevBlack = checkedBlack;
+      checkedRed = isChecked(board, true);
+      checkedBlack = isChecked(board, false);
+      updateDeadKing();
+      updateCenterText();
+      computeSafeHints();
+
+      // 算出本次该弹什么（沿用 prev 判断，避免重复弹）
+      let toastText = '';
+      if (winner && (overReason === 'checkmate' || overReason === 'stalemate')) {
+        toastText = (overReason === 'stalemate') ? '困毙！' : '绝杀！';
+      } else if (!winner) {
+        const iAmChecked = iAmRed ? checkedRed : checkedBlack;
+        const oppChecked = iAmRed ? checkedBlack : checkedRed;
+        const wasChecked = iAmRed ? prevRed : prevBlack;
+        const oppWas = iAmRed ? prevBlack : prevRed;
+        if ((iAmChecked && !wasChecked) || (oppChecked && !oppWas)) toastText = '将军！';
+      }
+
+      // 走子/吃子动画还在播 → 只记状态，等落定再展示
+      if (animBusy()) {
+        if (toastText && !silent) {
+          pendingToastText = toastText;
+          pendingSfx = (overReason === 'checkmate' || overReason === 'stalemate') ? 'mate' : 'check';
+        }
+        renderBoard();
+        return;
+      }
+
+      const need = (roomStatus === 'playing') && !winner && (checkedRed || checkedBlack);
+      if (need) startCheckAnim();
+      else stopCheckAnim();
+
+      if (!silent && toastText) showBoardToast(toastText);
+      renderBoard();
+    }
+
+    function flushCheckPrompt(force) {
+      if (!force && animBusy()) return;
+
+      const need = (roomStatus === 'playing') && !winner && (checkedRed || checkedBlack);
+      if (need) startCheckAnim();
+      else stopCheckAnim();
+
+      // 优先级：绝杀 > 将军 > 吃子，只显最高那个
+      let msg = '';
+      if (pendingToastText) msg = pendingToastText;
+      else if (pendingCaptureToast) msg = pendingCaptureToast;
+
+      if (msg) {
+        const dur = (msg === pendingCaptureToast && !pendingToastText) ? 800 : 1800;
+        showBoardToast(msg, dur);
+        if (pendingSfx === 'mate') sfxMate();
+        else if (pendingSfx === 'check') sfxCheck();
+        else if (pendingSfx === 'capture') sfxCapture();
+        pendingToastText = ''; pendingCaptureToast = ''; pendingSfx = '';
+      }
+
+      if (pendingOverPrompt) {
+        pendingOverPrompt = false;
+        if (!overDelayTimer) {
+          overDelayTimer = setTimeout(function () {
+            overDelayTimer = null;
+            showGameOver();
+          }, 2000);
+        }
+      }
+
+      renderBoard();
+    }
+
+    // 可落点标记：空格 = 实心小圆 + 外套空心细圆；吃子 = 棋子外套细蓝环
+    function drawMoveMarker(lx, ly) {
+      const p = toView(lx, ly);
+      const cx = px(p[0]);
+      const cy = py(p[1]);
+      const occupied = board[lx][ly] !== 0;
+
+      ctx.strokeStyle = '#2196f3';
+      ctx.fillStyle = '#2196f3';
+
+      if (occupied) {
+        ctx.lineWidth = Math.max(2, viewW / 300);
+        ctx.beginPath();
+        ctx.arc(cx, cy, CELL * 0.50, 0, Math.PI * 2);
+        ctx.stroke();
+      } else {
+        ctx.beginPath();
+        ctx.arc(cx, cy, CELL * 0.12, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.lineWidth = Math.max(1, viewW / 900);
+        ctx.beginPath();
+        ctx.arc(cx, cy, CELL * 0.16, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+
+    // 走法生成：b 为棋盘，与后端 _gen_moves 同一套规则
+    function genMovesFor(b, x, y) {
+      const v = b[x][y];
+      if (!v) return [];
+      const isRed = (v > 0);
+      const av = Math.abs(v);
+      const out = [];
+
+      const inB = function (nx, ny) {
+        return nx >= 0 && nx < BOARD_W && ny >= 0 && ny < BOARD_H;
+      };
+      const ok = function (nx, ny) {
+        const t = b[nx][ny];
+        return (t === 0) || ((t > 0) !== isRed);
+      };
+      const push = function (nx, ny) {
+        if (inB(nx, ny) && ok(nx, ny)) out.push([nx, ny]);
+      };
+
+      if (av === 1 || av === 2) {
+        const py0 = isRed ? 7 : 0;
+        const py1 = isRed ? 9 : 2;
+        const dirs = (av === 1)
+          ? [[1, 0], [-1, 0], [0, 1], [0, -1]]
+          : [[1, 1], [1, -1], [-1, 1], [-1, -1]];
+        for (const d of dirs) {
+          const nx = x + d[0];
+          const ny = y + d[1];
+          if (nx >= 3 && nx <= 5 && ny >= py0 && ny <= py1) push(nx, ny);
+        }
+      } else if (av === 3) {
+        for (const d of [[2, 2], [2, -2], [-2, 2], [-2, -2]]) {
+          const nx = x + d[0];
+          const ny = y + d[1];
+          if (!inB(nx, ny)) continue;
+          if (isRed && ny < 5) continue;
+          if (!isRed && ny > 4) continue;
+          if (b[x + d[0] / 2][y + d[1] / 2] !== 0) continue;
+          push(nx, ny);
+        }
+      } else if (av === 4) {
+        for (const d of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          let nx = x + d[0];
+          let ny = y + d[1];
+          while (inB(nx, ny)) {
+            const t = b[nx][ny];
+            if (t === 0) {
+              out.push([nx, ny]);
+            } else {
+              if ((t > 0) !== isRed) out.push([nx, ny]);
+              break;
+            }
+            nx += d[0];
+            ny += d[1];
+          }
+        }
+      } else if (av === 5) {
+        for (const d of [[1, 2], [1, -2], [-1, 2], [-1, -2],
+                         [2, 1], [2, -1], [-2, 1], [-2, -1]]) {
+          const nx = x + d[0];
+          const ny = y + d[1];
+          if (!inB(nx, ny)) continue;
+          const lx = (Math.abs(d[0]) === 2) ? x + d[0] / 2 : x;
+          const ly = (Math.abs(d[0]) === 2) ? y : y + d[1] / 2;
+          if (b[lx][ly] !== 0) continue;
+          push(nx, ny);
+        }
+      } else if (av === 6) {
+        for (const d of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          let nx = x + d[0];
+          let ny = y + d[1];
+          let screen = 0;
+          while (inB(nx, ny)) {
+            const t = b[nx][ny];
+            if (screen === 0) {
+              if (t === 0) out.push([nx, ny]);
+              else screen = 1;
+            } else {
+              if (t !== 0) {
+                if ((t > 0) !== isRed) out.push([nx, ny]);
+                break;
+              }
+            }
+            nx += d[0];
+            ny += d[1];
+          }
+        }
+      } else if (av === 7) {
+        let steps = isRed ? [[0, -1]] : [[0, 1]];
+        if (isRed && y <= 4) steps = steps.concat([[1, 0], [-1, 0]]);
+        if (!isRed && y >= 5) steps = steps.concat([[1, 0], [-1, 0]]);
+        for (const d of steps) push(x + d[0], y + d[1]);
+      }
+
+      return out;
+    }
+
+    function genMoves(x, y) {
+      return genMovesFor(board, x, y);
+    }
+
+    function boardCopy(b) {
+      const nb = [];
+      for (let i = 0; i < BOARD_W; i++) nb.push(b[i].slice());
+      return nb;
+    }
+
+    function findKing(b, isRed) {
+      const t = isRed ? 1 : -1;
+      for (let x = 0; x < BOARD_W; x++) {
+        for (let y = 0; y < BOARD_H; y++) {
+          if (b[x][y] === t) return [x, y];
+        }
+      }
+      return [-1, -1];
+    }
+
+    function kingsFacing(b) {
+      const rk = findKing(b, true);
+      const bk = findKing(b, false);
+      if (rk[0] < 0 || bk[0] < 0) return false;
+      if (rk[0] !== bk[0]) return false;
+      const x = rk[0];
+      const y1 = Math.min(rk[1], bk[1]);
+      const y2 = Math.max(rk[1], bk[1]);
+      for (let y = y1 + 1; y < y2; y++) {
+        if (b[x][y] !== 0) return false;
+      }
+      return true;
+    }
+
+    function isChecked(b, isRed) {
+      const k = findKing(b, isRed);
+      if (k[0] < 0) return true;
+      if (kingsFacing(b)) return true;
+      for (let x = 0; x < BOARD_W; x++) {
+        for (let y = 0; y < BOARD_H; y++) {
+          const v = b[x][y];
+          if (!v) continue;
+          if ((v > 0) === isRed) continue;
+          const mv = genMovesFor(b, x, y);
+          for (let i = 0; i < mv.length; i++) {
+            if (mv[i][0] === k[0] && mv[i][1] === k[1]) return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    function legalMoves(x, y) {
+      const v = board[x][y];
+      if (!v) return [];
+      const isRed = (v > 0);
+      const cand = genMoves(x, y);
+      const out = [];
+      for (const m of cand) {
+        const nb = boardCopy(board);
+        nb[m[0]][m[1]] = v;
+        nb[x][y] = 0;
+        if (!isChecked(nb, isRed)) out.push(m);
+      }
+      return out;
+    }
+
+    // 被吃子的残影：放大 + 上浮 + 淡出
+    function drawGhostPiece(cx, cy, r, v) {
+      const isRed = (v > 0);
+      const t = PIECE_TEXT[Math.abs(v)];
+      const ch = t ? (isRed ? t[0] : t[1]) : '?';
+
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = '#f7e7c8';
+      ctx.fill();
+      ctx.lineWidth = Math.max(1.5, CELL * 0.05);
+      ctx.strokeStyle = isRed ? '#c0392b' : '#2c3e50';
+      ctx.stroke();
+
+      ctx.fillStyle = isRed ? '#c0392b' : '#2c3e50';
+      const fs = Math.round(r * 1.3);
+      ctx.font = 'bold ' + fs + 'px "PingFang SC","Microsoft YaHei",serif';
+      ctx.textAlign = 'center';
+      fillTextVCentered(ch, cx, cy, fs);
+    }
+
+    const MOVE_LIFT_MS = 90;
+    const MOVE_MOVE_MS = 170;
+    const MOVE_DROP_MS = 90;
+    const MOVE_MS = MOVE_LIFT_MS + MOVE_MOVE_MS + MOVE_DROP_MS;
+
+    function moveAnimGeo(fx, fy, tx, ty, p) {
+      const a = toView(fx, fy);
+      const b = toView(tx, ty);
+      const ax = px(a[0]);
+      const ay = py(a[1]);
+      const bx = px(b[0]);
+      const by = py(b[1]);
+      const L = MOVE_LIFT_MS / MOVE_MS;
+      const M = MOVE_MOVE_MS / MOVE_MS;
+      let h = 0;
+      let t = 0;
+      if (p < L) {
+        const q = p / L;
+        h = Math.sin(q * Math.PI / 2);
+        t = 0;
+      } else if (p < L + M) {
+        const q = (p - L) / M;
+        h = 1;
+        t = (q < 0.5) ? (2 * q * q) : (1 - Math.pow(-2 * q + 2, 2) / 2);
+      } else {
+        let q = (p - L - M) / (1 - L - M);
+        if (q > 1) q = 1;
+        if (q < 0) q = 0;
+        h = 1 - q * q;
+        t = 1;
+      }
+      const gx = ax + (bx - ax) * t;
+      const gy = ay + (by - ay) * t;
+      let cy = gy - CELL * 0.55 * h;
+      const rr = CELL * 0.44 * (1 + 0.14 * h);
+      if (cy - rr < 1) cy = rr + 1;
+      return { gx: gx, gy: gy, cx: gx, cy: cy, h: h };
+    }
+
+    function drawFlyingPiece(cx, cy, gy, h, v) {
+      const scale = 1 + 0.14 * h;
+      const r = CELL * 0.44 * scale;
+      ctx.save();
+      ctx.globalAlpha = 0.26 * (1 - 0.55 * h);
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.ellipse(cx, gy, r * 0.9 * (1 - 0.2 * h), r * 0.34 * (1 - 0.2 * h), 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      ctx.save();
+      ctx.translate(cx, cy);
+      renderPieceTo(ctx, v, false, r);
+      ctx.restore();
+    }
+
+    function startMoveAnim() {
+      if (moveAnimOn) return;
+      moveAnimOn = true;
+      function loop() {
+        if (!moveAnim) {
+          moveAnimOn = false;
+          renderBoard();
+          return;
+        }
+        const el = Date.now() - moveAnim.t0;
+        if (el >= MOVE_MS) {
+          const capV = moveAnim.capV;
+          const cx2 = moveAnim.tx;
+          const cy2 = moveAnim.ty;
+          moveAnim = null;
+          moveAnimOn = false;
+          if (capV) {
+            captAnim = { x: cx2, y: cy2, v: capV, t0: Date.now() };
+            sfxCapture();
+            pendingCaptureToast = '吃';
+            if (!pendingSfx) pendingSfx = 'capture';
+            startCaptAnim();
+            flushCheckPrompt(true);
+          } else {
+            sfxMove();
+            renderBoard();
+            flushCheckPrompt();
+          }
+          return;
+        }
+        renderBoard();
+        requestAnimationFrame(loop);
+      }
+      requestAnimationFrame(loop);
+    }
+
+    function animBusy() {
+      if (moveAnim && Date.now() - moveAnim.t0 > 3000) moveAnim = null;
+      if (captAnim && Date.now() - captAnim.t0 > 3000) captAnim = null;
+      return !!moveAnim || !!captAnim;
+    }
+
+    function squareAttacked(b, byRed, tx, ty) {
+      for (let x = 0; x < BOARD_W; x++) {
+        for (let y = 0; y < BOARD_H; y++) {
+          const v = b[x][y];
+          if (!v) continue;
+          if ((v > 0) !== byRed) continue;
+          const mv = genMovesFor(b, x, y);
+          for (let i = 0; i < mv.length; i++) {
+            if (mv[i][0] === tx && mv[i][1] === ty) return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    function startCaptAnim() {
+      if (captAnimOn) return;
+      captAnimOn = true;
+      function loop() {
+        if (!captAnim) {
+          captAnimOn = false;
+          flushCheckPrompt();
+          renderBoard();
+          return;
+        }
+        if (Date.now() - captAnim.t0 >= CAPT_MS) {
+          captAnim = null;
+          captAnimOn = false;
+          renderBoard();
+          flushCheckPrompt();
+          return;
+        }
+        renderBoard();
+        requestAnimationFrame(loop);
+      }
+      requestAnimationFrame(loop);
+    }
+    function renderBoard() {
+      drawBoardBg();
+      for (let x = 0; x < BOARD_W; x++) {
+        for (let y = 0; y < BOARD_H; y++) {
+          if (moveAnim && x === moveAnim.tx && y === moveAnim.ty) continue;
+          if (moveAnim && moveAnim.srcV && x === moveAnim.fx && y === moveAnim.fy) continue;
+          if (board[x][y]) drawPiece(x, y, board[x][y]);
+        }
+      }
+      // 走子动画
+      if (moveAnim) {
+        const el = Date.now() - moveAnim.t0;
+        const p = Math.min(1, el / MOVE_MS);
+        if (moveAnim.capV && p < 1) {
+          drawPiece(moveAnim.tx, moveAnim.ty, moveAnim.capV);
+        }
+        if (moveAnim.srcV) {
+          ctx.save();
+          ctx.globalAlpha = Math.min(1, p * 1.5);
+          drawPiece(moveAnim.fx, moveAnim.fy, moveAnim.srcV);
+          ctx.restore();
+        }
+        const g = moveAnimGeo(moveAnim.fx, moveAnim.fy, moveAnim.tx, moveAnim.ty, p);
+        drawFlyingPiece(g.cx, g.cy, g.gy, g.h, moveAnim.v);
+      }
+
+      // 吃子残影
+      if (captAnim) {
+        const el = Date.now() - captAnim.t0;
+        const p = Math.min(1, el / CAPT_MS);
+        const gp = toView(captAnim.x, captAnim.y);
+        const gx = px(gp[0]);
+        const gy = py(gp[1]) - CELL * 0.28 * p;
+        ctx.save();
+        ctx.globalAlpha = 1 - p;
+        drawGhostPiece(gx, gy, CELL * 0.44 * (1 + 0.3 * p), captAnim.v);
+        ctx.restore();
+      }
+      const half = CELL * 0.44;
+      const arm = CELL * 0.17;
+      const selected = (selX >= 0);
+
+      // 最后一手：原位置 + 落点（选中时屏蔽）
+      if (!selected && lastX >= 0 && lastY >= 0) {
+        drawCornerBox(lastX, lastY, '#1976d2', half, arm);
+        if (lastFromX >= 0 && lastFromY >= 0) {
+          drawCornerBox(lastFromX, lastFromY, '#1976d2', half, arm);
+        }
+      }
+
+      // 将军红圈（选中时屏蔽）
+      if (!selected && !winner && roomStatus === 'playing') {
+        if (checkedRed) {
+          const k = findKing(board, true);
+          if (k[0] >= 0) drawCheckRing(k[0], k[1]);
+        }
+        if (checkedBlack) {
+          const k = findKing(board, false);
+          if (k[0] >= 0) drawCheckRing(k[0], k[1]);
+        }
+      }
+
+      // 绝杀：被将死的將帥 深红圈常亮
+      if (winner && overReason === 'checkmate' && deadKing && deadKing[0] >= 0) {
+        const p = toView(deadKing[0], deadKing[1]);
+        ctx.save();
+        ctx.strokeStyle = '#b71c1c';
+        ctx.lineWidth = Math.max(3, viewW / 200);
+        ctx.beginPath();
+        ctx.arc(px(p[0]), py(p[1]), CELL * 0.50, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // 选中：亮青色 + 合法落点
+      if (selected && roomStatus === 'playing' && !winner) {
+        drawCornerBox(selX, selY, '#00e5ff', half, arm);
+        for (const m of selMoves) drawMoveMarker(m[0], m[1]);
+      }
+
+      // 安全提示：绿=可白吃（敌方）  红=危险（我方）
+      if (safeHintOn && roomStatus === 'playing' && !winner) {
+        for (let i = 0; i < safeGreen.length; i++) {
+          drawSafeRing(safeGreen[i][0], safeGreen[i][1], '#00e676');
+        }
+        for (let i = 0; i < safeRed.length; i++) {
+          drawSafeRing(safeRed[i][0], safeRed[i][1], '#ff5252');
+        }
+      }
+    }
+
+    function loadBoardFromStr(s) {
+      initBoard();
+      if (!s) return;
+      try {
+        s.split(',').forEach(function (c) {
+          if (!c) return;
+          const p = c.split(':');
+          board[parseInt(p[0])][parseInt(p[1])] = parseInt(p[2]);
+        });
+      } catch (e) {}
+    }
+
+    function setLastFromData(lx, ly) {
+      if (lx === '' || lx === undefined || lx === null ||
+          ly === '' || ly === undefined || ly === null) {
+        lastX = -1;
+        lastY = -1;
+      } else {
+        lastX = parseInt(lx);
+        lastY = parseInt(ly);
+      }
+    }
+
+    function setFromFromData(lx, ly) {
+      if (lx === '' || lx === undefined || lx === null ||
+          ly === '' || ly === undefined || ly === null) {
+        lastFromX = -1;
+        lastFromY = -1;
+      } else {
+        lastFromX = parseInt(lx);
+        lastFromY = parseInt(ly);
+      }
+    }
+
+
+    function formatTime(sec) {
+      if (sec < 0) sec = 0;
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return (m < 10 ? '0' + m : m) + ':' + (s < 10 ? '0' + s : s);
+    }
+
+    function startCountdown(sec) {
+      remainSeconds = sec;
+      if (countdownTimer) clearInterval(countdownTimer);
+      document.getElementById('countdown').textContent = formatTime(remainSeconds);
+      countdownTimer = setInterval(function () {
+        remainSeconds--;
+        if (remainSeconds <= 0) {
+          remainSeconds = 0;
+          clearInterval(countdownTimer);
+        }
+        document.getElementById('countdown').textContent = formatTime(remainSeconds);
+      }, 1000);
+    }
+
+    function stopCountdown() {
+      if (countdownTimer) clearInterval(countdownTimer);
+    }
+
+    function clearReadyMarkers() {
+      document.getElementById('p1Status').textContent = '';
+      document.getElementById('p2Status').textContent = '';
+    }
+
+    function updatePanels(p2Name, status) {
+      const hasBoth = !!p2Name;
+      const playing = (status === 'playing');
+      document.getElementById('readyCard').style.display = (hasBoth && !playing) ? 'block' : 'none';
+      document.getElementById('timerCard').style.display = playing ? 'none' : 'block';
+    }
+
+    function updateReadyUI(or, pr) {
+      document.getElementById('p1Status').textContent = or ? '已准备 ✓' : '';
+      document.getElementById('p2Status').textContent = pr ? '已准备 ✓' : '';
+      myReady = isOwner ? or : pr;
+      const b = document.getElementById('readyBtn');
+      b.textContent = myReady ? '取消准备' : '准备';
+      if (myReady) {
+        b.classList.add('btn-ready-done');
+      } else {
+        b.classList.remove('btn-ready-done');
+      }
+    }
+
+    function renderFirstLine() {
+      const el = document.getElementById('firstLine');
+      if (roomStatus === 'playing' || !player2Name || !redPlayer) {
+        el.style.display = 'none';
+        return;
+      }
+      el.style.display = 'block';
+      el.textContent = '本轮 ' + redPlayer + ' 先手';
+    }
+
+    function renderTurnMark() {
+      const p1 = document.getElementById('p1Status');
+      const p2 = document.getElementById('p2Status');
+      if (roomStatus !== 'playing' || winner || !currentTurn) return;
+
+      p1.textContent = '';
+      p2.textContent = '';
+      p1.className = 'ready-status';
+      p2.className = 'ready-status';
+
+      if (currentTurn === ownerName) {
+        if (isOwner) {
+          p1.textContent = '轮到你了';
+          p1.className = 'turn-status';
+        } else {
+          p1.textContent = '对方行动';
+          p1.className = 'opp-status';
+        }
+      } else if (currentTurn === player2Name) {
+        if (isOwner) {
+          p2.textContent = '对方行动';
+          p2.className = 'opp-status';
+        } else {
+          p2.textContent = '轮到你了';
+          p2.className = 'turn-status';
+        }
+      }
+    }
+
+    function renderTurn(owner, p2, turn) {
+      ownerName = owner || '';
+      player2Name = p2 || '';
+      currentTurn = turn || '';
+      if (!player2Name) {
+        document.getElementById('turnInfo').textContent = '-';
+        return;
+      }
+      document.getElementById('turnInfo').textContent =
+        (currentTurn === redPlayer) ? '红方走棋' : '黑方走棋';
+      renderTurnMark();
+    }
+
+    function refreshNames() {
+      // 固定 id 位置：第一行永远 owner，第二行永远 player2
+      // 每局只交换两个小圆点的红/黑，名字后面只标（你）
+      let ownerIsRed;
+      if (redPlayer && ownerName) {
+        ownerIsRed = (redPlayer === ownerName);
+      } else if (firstMode === 'opponent_red') {
+        ownerIsRed = false;   // 对手还没来，红图标先占第二行
+      } else {
+        ownerIsRed = true;
+      }
+
+      document.getElementById('p1Stone').className =
+        'stone ' + (ownerIsRed ? 'stone-red' : 'stone-black');
+      document.getElementById('p2Stone').className =
+        'stone ' + (ownerIsRed ? 'stone-black' : 'stone-red');
+
+      document.getElementById('player1Name').textContent =
+        ownerName ? (ownerName + (isOwner ? '（你）' : '')) : '房主';
+
+      if (player2Name) {
+        document.getElementById('player2Name').textContent =
+          player2Name + (isOwner ? '' : '（你）');
+      } else {
+        document.getElementById('player2Name').textContent = '等待加入...';
+      }
+    }
+
+    function updateActionButtons() {
+      const wrap = document.getElementById('actionWrap');
+      if (!wrap) return;
+
+      const show = (roomStatus === 'playing' && !winner);
+      wrap.style.display = show ? 'flex' : 'none';
+      wrap.style.flexDirection = 'column';
+      updateDrawBtn();
+      if (!show) return;
+
+      const ub = document.getElementById('undoBtn');
+      ub.textContent = '悔棋(' + undoLeft + ')';
+      const disabled = (undoLeft <= 0) || undoLocked || !!undoPendingBy;
+      ub.disabled = disabled;
+      if (disabled) {
+        ub.classList.add('btn-disabled');
+      } else {
+        ub.classList.remove('btn-disabled');
+      }
+    }
+    function updateUndoBtn() {
+      updateActionButtons();
+    }
+        function stopUndoCountdown() {
+      if (undoCountdownTimer) {
+        clearInterval(undoCountdownTimer);
+        undoCountdownTimer = null;
+      }
+    }
+
+function requestDraw() {
+      if (!wsReady()) { alert('连接已断开，请稍候重试'); return; }
+      if (roomStatus !== 'playing') return;
+      if (winner) return;
+      if (drawPendingBy) return;
+      if (currentTurn !== nickname) { alert('只能在自己回合提和'); return; }
+      if (drawLeft <= 0) { alert('议和次数已用完'); return; }
+      sfxClick();
+      if (wsReady()) ws.send(JSON.stringify({ action: 'draw_request' }));
+    }
+
+    function updateDrawBtn() {
+      const b = document.getElementById('drawBtn');
+      if (!b) return;
+      if (drawPendingBy) {
+        b.textContent = (drawPendingBy === nickname) ? '议和中...' : '同意和棋';
+        b.classList.remove('btn-disabled');
+        return;
+      }
+      b.textContent = '议和(' + drawLeft + ')';
+      b.classList.toggle('btn-disabled', drawLeft <= 0 || currentTurn !== nickname || !!winner);
+    }
+
+    function onDrawRequest(data) {
+      if (drawReplyTimer) { clearInterval(drawReplyTimer); drawReplyTimer = null; }
+      drawPendingBy = data.by || '';
+      const uo = parseInt(data.draw_used_owner) || 0;
+      const up = parseInt(data.draw_used_player2) || 0;
+      if (drawPendingBy === nickname) drawLeft = 2 - (iAmRed ? uo : up);
+      updateDrawBtn();
+
+      if (drawPendingBy === nickname) {
+        let left = 5;
+        const el = document.getElementById('waitingText');
+        if (el) { el.style.display='block'; el.textContent='等待对手回应和棋请求...（'+left+'）'; }
+        if (drawCountdownTimer) clearInterval(drawCountdownTimer);
+        drawCountdownTimer = setInterval(function () {
+          left -= 1;
+          if (left <= 0) {
+            clearInterval(drawCountdownTimer); drawCountdownTimer = null;
+            if (el) { el.style.display='none'; el.textContent=''; }
+            drawPendingBy = ''; updateDrawBtn(); return;
+          }
+          if (el) el.textContent='等待对手回应和棋请求...（'+left+'）';
+        }, 1000);
+        return;
+      }
+
+      // 对手提和 → 弹窗，5 秒后自动消失（不自动拒绝）
+      let rl = 5;
+      showModal('和棋请求', '对手请求和棋，是否同意？', function () {
+        if (drawReplyTimer) { clearInterval(drawReplyTimer); drawReplyTimer = null; }
+        if (wsReady()) ws.send(JSON.stringify({ action: 'draw_response', agree: true }));
+      }, {
+        force: true,
+        confirmText: '同意',
+        cancelText: '拒绝(' + rl + ')',
+        onCancel: function () {
+          if (drawReplyTimer) { clearInterval(drawReplyTimer); drawReplyTimer = null; }
+          if (wsReady()) ws.send(JSON.stringify({ action: 'draw_response', agree: false }));
+        }
+      });
+      const b2 = document.getElementById('modalBtn2');
+      drawReplyTimer = setInterval(function () {
+        rl -= 1;
+        const modal = document.getElementById('modal');
+        if (!modal || !modal.classList.contains('active')) {
+          clearInterval(drawReplyTimer); drawReplyTimer = null; return;
+        }
+        if (b2) b2.textContent = '拒绝(' + rl + ')';
+        if (rl <= 0) {
+          clearInterval(drawReplyTimer); drawReplyTimer = null;
+          if (wsReady()) ws.send(JSON.stringify({ action: 'draw_response', agree: false }));
+          const mb = document.getElementById('modal');
+          if (mb) mb.classList.remove('active');
+        }
+      }, 1000);
+    }
+
+    function onDrawRejected(data) {
+      if (drawCountdownTimer) { clearInterval(drawCountdownTimer); drawCountdownTimer = null; }
+      if (drawReplyTimer) { clearInterval(drawReplyTimer); drawReplyTimer = null; }
+      const by = data.by || '';
+      const iAmRequester = (by !== nickname);
+      drawPendingBy = '';
+      const uo = parseInt(data.draw_used_owner) || 0;
+      const up = parseInt(data.draw_used_player2) || 0;
+      drawLeft = 2 - (iAmRed ? uo : up);
+
+      const el = document.getElementById('waitingText');
+      if (el) { el.style.display='block'; el.textContent = iAmRequester ? '对手拒绝和棋' : '已拒绝和棋'; }
+      setTimeout(function () {
+        const e = document.getElementById('waitingText');
+        if (e) { e.style.display='none'; e.textContent=''; }
+      }, 2500);
+
+      updateDrawBtn();
+    }
+
+function requestUndo() {
+      if (!wsReady()) {
+        alert('连接已断开，请稍候重试');
+        return;
+      }
+      if (roomStatus !== 'playing') return;
+      if (winner) return;
+      if (undoPendingBy) return;
+      if (undoLocked) {
+        alert('本回合悔棋已被拒绝，走棋后才能再次申请');
+        return;
+      }
+      if (undoLeft <= 0) {
+        alert('悔棋次数已用完');
+        return;
+      }
+      sfxClick();
+      ws.send(JSON.stringify({ action: 'undo_request' }));
+    }
+    function requestSurrender() {
+      if (!wsReady()) {
+        alert('连接已断开，请稍候重试');
+        return;
+      }
+      sfxClick();
+      showModal('投降', '确定投降吗？投降将立即判负。', function () {
+        if (wsReady()) ws.send(JSON.stringify({ action: 'surrender' }));
+      }, {
+        force: true,
+        confirmText: '确定投降',
+        onCancel: function () {},
+        cancelText: '取消'
+      });
+    }
+
+
+    function toggleReady() {
+      if (!wsReady()) return;
+      myReady = !myReady;
+      sfxClick();
+      ws.send(JSON.stringify({ action: 'ready', ready: myReady }));
+    }
+
+    function leaveRoom(e) {
+      e.preventDefault();
+      selfLeaving = true;
+      const go = function () {
+        window.location.href = '/game_Cchess/Cchess/';
+      };
+      if (wsReady()) {
+        ws.send(JSON.stringify({ action: 'leave' }));
+        setTimeout(go, 300);
+      } else {
+        go();
+      }
+    }
+
+    function isMyPiece(x, y) {
+      return board[x][y] !== 0 && ((board[x][y] > 0) === iAmRed);
+    }
+
+    function clearSel() {
+      selX = -1;
+      selY = -1;
+      selMoves = [];
+      renderBoard();
+    }
+
+    function selectPiece(x, y) {
+      const mv = legalMoves(x, y);
+      selX = x;
+      selY = y;
+      selMoves = mv;
+      renderBoard();
+    }
+
+    canvas.addEventListener('click', function (e) {
+      if (roomStatus !== 'playing' || winner) return;
+      if (currentTurn !== nickname) return;
+      if (undoPendingBy) return;
+      if (animBusy()) return;
+      if (!wsReady()) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const vx = Math.round((e.clientX - rect.left - PAD_X) / CELL);
+      const vy = Math.round((e.clientY - rect.top - PAD_Y) / CELL);
+      if (vx < 0 || vx >= BOARD_W || vy < 0 || vy >= BOARD_H) {
+        clearSel();
+        return;
+      }
+      const lg = fromView(vx, vy);
+      const x = lg[0];
+      const y = lg[1];
+
+      if (selX >= 0) {
+        for (const m of selMoves) {
+          if (m[0] === x && m[1] === y) {
+            ws.send(JSON.stringify({
+              action: 'move',
+              from_x: selX, from_y: selY, x: x, y: y
+            }));
+            clearSel();
+            return;
+          }
+        }
+        if (isMyPiece(x, y)) {
+          selectPiece(x, y);
+          return;
+        }
+        clearSel();
+        return;
+      }
+
+      if (isMyPiece(x, y)) {
+        selectPiece(x, y);
+        return;
+      }
+      clearSel();
+    });
+
+
+    function showGameOver() {
+      if (gameOverShown) return;
+      gameOverShown = true;
+      stopUndoReplyCountdown();
+      stopMoveTimer();
+
+      let text = '';
+      if (winner === 'draw') {
+        text = '对局结束，双方议和';
+        sfxWin();
+      } else if (winner === nickname) {
+        if (overReason === 'surrender') {
+          text = '对手认输，你获胜！';
+        } else if (overReason === 'timeout') {
+          text = '对手超时，你获胜！';
+        } else if (overReason === 'stalemate') {
+          text = '对手被困毙，你获胜！';
+        } else {
+          text = '将死！你获胜！';
+        }
+        sfxWin();
+      } else {
+        if (overReason === 'surrender') {
+          text = '你已认输';
+        } else if (overReason === 'timeout') {
+          text = '你已超时判负';
+        } else if (overReason === 'stalemate') {
+          text = '你被困毙，判负';
+        } else {
+          text = '被将死，' + winner + ' 获胜';
+        }
+        sfxLose();
+      }
+
+      showModal('游戏结束', text, function () {
+        if (wsReady()) ws.send(JSON.stringify({ action: 'reset_game' }));
+      }, { force: true });
+    }
+
+    // ========== WebSocket ==========
+    function connectWebSocket() {
+      ws = new WebSocket((location.protocol === 'https:' ? 'wss' : 'ws') + '://' + location.host + '/ws/game_Cchess/Cchess/room/' + roomId + '/');
+
+      ws.onopen = function () {
+        ws.send(JSON.stringify({ action: 'enter' }));
+        if (pingTimer) clearInterval(pingTimer);
+        pingTimer = setInterval(function () {
+          if (wsReady()) ws.send(JSON.stringify({ action: 'ping' }));
+        }, 10000);
+        if (syncTimer) clearInterval(syncTimer);
+        syncTimer = setInterval(function () {
+          if (wsReady()) ws.send(JSON.stringify({ action: 'sync_state' }));
+        }, 5000);
+      };
+
+      ws.onmessage = function (e) {
+        const data = JSON.parse(e.data);
+        switch (data.action) {
+          case 'room_state':
+            applyRoomState(data);
+            break;
+          case 'player_joined':
+            onPlayerJoined(data);
+            break;
+          case 'ready_update':
+            updateReadyUI(data.owner_ready === '1', data.player2_ready === '1');
+            if (data.red_player) {
+              redPlayer = data.red_player;
+              firstMode = data.first_mode || 'owner_red';
+              iAmRed = (redPlayer === nickname);
+              renderFirstLine();
+              refreshNames();
+            }
+            break;
+          case 'opponent_lost':
+            if (data.nickname === nickname) break;
+            opponentLost = true;
+            document.getElementById('waitingText').style.display = 'block';
+            document.getElementById('waitingText').textContent = '对手已断线';
+            break;
+          case 'opponent_reconnected':
+            opponentLost = false;
+            statusToast = (data.nickname === nickname) ? '你已重新连接' : '对手已重新连接';
+            document.getElementById('waitingText').style.display = 'block';
+            document.getElementById('waitingText').textContent = statusToast;
+            if (toastTimer) clearTimeout(toastTimer);
+            toastTimer = setTimeout(refreshToastDone, 2000);
+            break;
+          case 'game_start':
+            onGameStart(data);
+            break;
+          case 'move_made':
+            onMoveMade(data);
+            break;
+          case 'undo_request':
+            onUndoRequest(data);
+            break;
+          case 'undo_done':
+            onUndoDone(data);
+            break;
+          case 'draw_request':
+            onDrawRequest(data);
+            break;
+          case 'draw_rejected':
+            onDrawRejected(data);
+            break;
+          case 'undo_rejected':
+            onUndoRejected(data);
+            break;
+          case 'game_over':
+            onGameOver(data);
+            break;
+          case 'game_reset':
+            onGameReset(data);
+            break;
+          case 'opponent_left':
+            onOpponentLeft(data);
+            break;
+          case 'room_expired':
+            showModal('等待超时', data.message || '等待超时，房间已解散', function () {
+              window.location.href = '/game_Cchess/Cchess/';
+            }, { force: true });
+            break;
+          case 'room_closed':
+            if (selfLeaving) break;
+            showModal('房间已解散', data.message, function () {
+              window.location.href = '/game_Cchess/Cchess/';
+            }, { force: true });
+            break;
+          case 'error':
+            showModal('提示', data.message || '无法进入房间', function () {
+              window.location.href = '/game_Cchess/Cchess/';
+            }, { force: true });
+            break;
+        }
+        updateActionButtons();
+      };
+
+      ws.onclose = function (e) {
+        if (pingTimer) clearInterval(pingTimer);
+        if (syncTimer) clearInterval(syncTimer);
+        if (e && e.code === 4003) return;
+        setTimeout(function () {
+          if (!document.hidden) connectWebSocket();
+        }, 1500);
+      };
+
+      ws.onerror = function (e) {
+        console.error('WS error', e);
+      };
+    }
+
+    function applyRoomState(data) {
+      ownerName = data.owner || '';
+      player2Name = data.player2 || '';
+      redPlayer = data.red_player || '';
+      firstMode = data.first_mode || 'owner_red';
+      iAmRed = (redPlayer === nickname);
+      roomStatus = data.status || 'waiting';
+      winner = data.winner || '';
+      overReason = data.over_reason || '';
+      undoPendingBy = data.undo_pending || '';
+      undoLocked = isOwner
+        ? (data.undo_lock_owner === '1')
+        : (data.undo_lock_player2 === '1');
+      undoLeft = isOwner
+        ? (data.undo_left_owner == null ? 5 : data.undo_left_owner)
+        : (data.undo_left_player2 == null ? 5 : data.undo_left_player2);
+
+      loadBoardFromStr(data.board || '');
+      setLastFromData(data.last_x, data.last_y);
+      setFromFromData(data.last_from_x, data.last_from_y);
+      renderBoard();
+      updateCheckStatus(true);
+      refreshNames();
+
+      const iAmIn = (ownerName === nickname || player2Name === nickname);
+
+      if (roomStatus === 'playing') {
+        stopCountdown();
+        clearReadyMarkers();
+        updatePanels(player2Name, 'playing');
+        if (!opponentLost) {
+          document.getElementById('waitingText').style.display = 'block';
+          setWaitingText('对局进行中');
+        }
+        renderTurn(ownerName, player2Name, data.current_turn || '');
+        applyMoveTimer(data.move_left || 0, data.move_total || 30);
+        renderFirstLine();
+        if (winner && iAmIn && !overDelayTimer) showGameOver();
+        return;
+      }
+
+      const prevStatus = roomStatus;
+      if (data.ttl && !(countdownTimer && prevStatus === roomStatus)) {
+        startCountdown(data.ttl);
+      }
+      updateReadyUI(data.owner_ready === '1', data.player2_ready === '1');
+      updatePanels(player2Name, roomStatus);
+      stopMoveTimer();
+      renderFirstLine();
+
+      if (player2Name) {
+        document.getElementById('waitingText').style.display = 'none';
+        renderTurn(ownerName, player2Name, data.current_turn || '');
+      } else {
+        document.getElementById('waitingText').style.display = 'block';
+        if (!opponentLost) {
+          document.getElementById('waitingText').textContent = '等待对手加入...';
+        }
+        document.getElementById('turnInfo').textContent = '-';
+      }
+    }
+
+    function onPlayerJoined(data) {
+      ownerName = data.owner || '';
+      player2Name = data.player2 || data.nickname || '';
+      redPlayer = data.red_player || '';
+      firstMode = data.first_mode || 'owner_red';
+      iAmRed = (redPlayer === nickname);
+      opponentLost = false;
+      roomStatus = 'full';
+      winner = '';
+      overReason = '';
+      gameOverShown = false;
+      undoPendingBy = '';
+      undoLocked = false;
+
+      initBoard();
+      captAnim = null;
+      renderBoard();
+      stopMoveTimer();
+      if (data.ttl) startCountdown(data.ttl);
+      updateReadyUI(data.owner_ready === '1', data.player2_ready === '1');
+      updatePanels(player2Name, roomStatus);
+      refreshNames();
+      renderFirstLine();
+      sfxJoin();
+
+      if (!statusToast) {
+        document.getElementById('waitingText').style.display = 'none';
+      }
+      renderTurn(ownerName, player2Name, data.current_turn || '');
+    }
+
+    function onGameStart(data) {
+      document.getElementById('modal').classList.remove('active');
+      window._modalCallback = null;
+      window._modalCallback2 = null;
+
+      roomStatus = 'playing';
+      winner = '';
+      overReason = '';
+      gameOverShown = false;
+      undoPendingBy = '';
+      undoLocked = false;
+      undoLeft = 5;
+      ownerName = data.owner || '';
+      player2Name = data.player2 || '';
+      redPlayer = data.red_player || '';
+      firstMode = data.first_mode || 'owner_red';
+      iAmRed = (redPlayer === nickname);
+
+      if (wsReady()) ws.send(JSON.stringify({ action: 'sync_state' }));
+      updatePanels(player2Name, 'playing');
+      stopCountdown();
+      clearReadyMarkers();
+      document.getElementById('waitingText').style.display = 'block';
+      document.getElementById('waitingText').textContent = '对局开始，红先！';
+      refreshNames();
+      renderFirstLine();
+      renderTurn(ownerName, player2Name, data.current_turn || ownerName);
+      applyMoveTimer(data.move_left || 0, data.move_total || 30);
+      sfxStart();
+    }
+
+    function onMoveMade(data) {
+      const fx = parseInt(data.from_x);
+      const fy = parseInt(data.from_y);
+      const tx = parseInt(data.x);
+      const ty = parseInt(data.y);
+      const mv = parseInt(data.v);
+      board[fx][fy] = 0;
+      board[tx][ty] = mv;
+
+      // 走子动画：抬起 → 飞行 → 落下；吃子动画与音效在落地时触发
+      const capV = parseInt(data.captured) || 0;
+      moveAnim = {
+        fx: fx, fy: fy, tx: tx, ty: ty,
+        v: mv, capV: capV, srcV: 0, t0: Date.now()
+      };
+      startMoveAnim();
+
+      setLastFromData(data.last_x, data.last_y);
+      setFromFromData(data.last_from_x, data.last_from_y);
+      clearSel();
+
+      winner = data.winner || '';
+      overReason = data.reason || '';
+      updateCheckStatus();
+      currentTurn = data.next_turn || '';
+      renderTurn(ownerName, player2Name, currentTurn);
+
+      if (winner) {
+        stopMoveTimer();
+        if (overReason === 'checkmate' || overReason === 'stalemate') {
+          pendingOverPrompt = true;
+          flushCheckPrompt();
+        } else {
+          showGameOver();
+        }
+      } else {
+        applyMoveTimer(data.move_left || 0, data.move_total || 30);
+      }
+    }
+    
+    function onUndoRejected(data) {
+      stopUndoCountdown();
+      stopUndoReplyCountdown();
+      undoPendingBy = '';
+
+      // 后端 'by' = 点拒绝的人（回应者）
+      const by = data.by || '';
+      const iAmResponder = (by === nickname);   // 我点的拒绝
+      const iAmRequester = !iAmResponder;       // 我申请悔棋被拒
+      undoLocked = iAmRequester;                // 只锁请求方本回合
+
+      const msg = iAmRequester
+        ? (data.timeout ? '对手未响应，悔棋失败' : '对手拒绝悔棋')
+        : '已拒绝悔棋';
+
+      const el = document.getElementById('waitingText');
+      if (el) {
+        el.style.display = 'block';
+        el.textContent = msg;
+      }
+      if (undoHintTimer) clearTimeout(undoHintTimer);
+      undoHintTimer = setTimeout(function () {
+        const e = document.getElementById('waitingText');
+        if (e) {
+          e.style.display = 'none';
+          e.textContent = '';
+        }
+        undoHintTimer = null;
+      }, 2500);
+
+      updateUndoBtn();
+      renderBoard();
+    }
+    let undoReplyTimer = null;
+    let undoReplyLeft = 0;
+
+    function stopUndoReplyCountdown() {
+      if (undoReplyTimer) {
+        clearInterval(undoReplyTimer);
+        undoReplyTimer = null;
+      }
+    }
+
+    function startUndoReplyCountdown() {
+      stopUndoReplyCountdown();
+      undoReplyLeft = 5;
+      const modal = document.getElementById('modal');
+      const btn2 = document.getElementById('modalBtn2');
+      const tick = function () {
+        // 弹窗已被关掉（对手反悔或别的流程）→ 停表，别误发拒绝
+        if (!modal || !modal.classList.contains('active')) {
+          stopUndoReplyCountdown();
+          return;
+        }
+        if (btn2 && btn2.style.display !== 'none') {
+          btn2.textContent = '拒绝(' + undoReplyLeft + ')';
+        }
+        if (undoReplyLeft <= 0) {
+          stopUndoReplyCountdown();
+          if (btn2 && btn2.style.display !== 'none') btn2.click();
+          else if (wsReady()) ws.send(JSON.stringify({ action: 'undo_response', agree: false }));
+          return;
+        }
+        undoReplyLeft -= 1;
+      };
+      tick();
+      undoReplyTimer = setInterval(tick, 1000);
+    }
+    function onUndoRequest(data) {
+      stopUndoReplyCountdown();
+      undoPendingBy = data.by || '';
+
+      // 是他自己发起的 → 显示等待倒计时，不弹框
+      if (undoPendingBy === nickname) {
+        let left = 5;
+        const el = document.getElementById('waitingText');
+        if (el) {
+          el.style.display = 'block';
+          el.textContent = '等待对手回应悔棋请求...（' + left + '）';
+        }
+        undoCountdownTimer = setInterval(function () {
+          left -= 1;
+          if (left <= 0) {
+            stopUndoCountdown();
+            if (el) {
+              el.style.display = 'none';
+              el.textContent = '';
+            }
+            undoPendingBy = '';
+            updateUndoBtn();
+            return;
+          }
+          if (el) el.textContent = '等待对手回应悔棋请求...（' + left + '）';
+        }, 1000);
+        updateUndoBtn();
+        return;
+      }
+
+      // 对手发起的 → 弹同意/拒绝框
+      showModal('悔棋请求', '对手请求悔棋，是否同意？（5 秒未响应将自动拒绝）', function () {
+        stopUndoCountdown();
+        if (wsReady()) ws.send(JSON.stringify({ action: 'undo_response', agree: true }));
+      }, {
+        force: true,
+        confirmText: '同意',
+        onCancel: function () {
+          stopUndoReplyCountdown();
+          if (wsReady()) ws.send(JSON.stringify({ action: 'undo_response', agree: false }));
+        },
+        cancelText: '拒绝'
+      });
+      startUndoReplyCountdown();
+      updateUndoBtn();
+    }
+
+    function onUndoDone(data) {
+      stopUndoReplyCountdown();
+      undoPendingBy = '';
+      undoLocked = false;
+      const bx = lastX;
+      const by = lastY;
+      const ax = lastFromX;
+      const ay = lastFromY;
+      let undoV = 0;
+      if (bx >= 0 && by >= 0 && ax >= 0 && ay >= 0) undoV = board[bx][by] || 0;
+
+      if (data.board) loadBoardFromStr(data.board);
+      let srcV = 0;
+      if (undoV && board[bx] && board[bx][by]) srcV = board[bx][by];
+
+      setLastFromData(data.last_x, data.last_y);
+      setFromFromData(data.last_from_x, data.last_from_y);
+      currentTurn = data.current_turn || '';
+      undoLeft = Math.max(0, undoLeft - 1);
+      winner = '';
+      overReason = '';
+      captAnim = null;
+      moveAnim = null;
+      clearSel();
+      updateCheckStatus(true);
+      renderTurn(ownerName, player2Name, currentTurn);
+      updateUndoBtn();
+      applyMoveTimer(data.move_left || 0, data.move_total || 30);
+      sfxPlace();
+
+      // 倒放：最后一手飞回原位
+      if (undoV && board[ax] && board[ax][ay] === undoV) {
+        moveAnim = { fx: bx, fy: by, tx: ax, ty: ay, v: undoV, capV: 0, srcV: srcV, t0: Date.now() };
+        startMoveAnim();
+      }
+    }
+    function onGameOver(data) {
+      winner = data.winner || '';
+      overReason = data.reason || '';
+      undoPendingBy = '';
+      currentTurn = '';
+      stopUndoReplyCountdown();
+      if (undoHintTimer) { clearTimeout(undoHintTime); undoHintTimer = null; }
+      stopMoveTimer();
+      clearSel();
+      captAnim = null;
+      showGameOver();
+    }
+
+    function onGameReset(data) {
+      stopUndoReplyCountdown();
+      if (undoHintTimer) { clearTimeout(undoHintTime); undoHintTimer = null; }
+      stopMoveTimer();
+      winner = '';
+      overReason = '';
+      gameOverShown = false;
+      undoPendingBy = '';
+      undoLocked = false;
+      undoLeft = 5;
+      initBoard();
+      clearSel();
+      captAnim = null;
+      const bt = document.getElementById('boardToast');
+      if (bt) bt.classList.remove('show');
+      updateCenterText();
+      renderBoard();
+      clearReadyMarkers();
+      updateReadyUI(false, false);
+      ownerName = data.owner || '';
+      player2Name = data.player2 || '';
+      redPlayer = data.red_player || '';
+      firstMode = data.first_mode || 'owner_red';
+      iAmRed = (redPlayer === nickname);
+      roomStatus = data.status || 'waiting';
+      updatePanels(player2Name, roomStatus);
+      refreshNames();
+      renderFirstLine();
+      if (data.ttl) startCountdown(data.ttl);
+      document.getElementById('waitingText').style.display = 'block';
+      document.getElementById('waitingText').textContent = '等待双方准备...';
+      renderTurn(ownerName, player2Name, data.current_turn || '');
+    }
+
+    function onOpponentLeft(data) {
+      stopUndoReplyCountdown();
+      stopMoveTimer();
+      opponentLost = false;
+      roomStatus = 'waiting';
+      myReady = false;
+      winner = '';
+      overReason = '';
+      gameOverShown = false;
+      undoPendingBy = '';
+      undoLocked = false;
+      undoLeft = 5;
+      initBoard();
+      renderBoard();
+      clearSel();
+      captAnim = null;
+      clearReadyMarkers();
+      updateReadyUI(false, false);
+      updatePanels('', 'waiting');
+      redPlayer = ownerName;
+      player2Name = '';
+      iAmRed = (redPlayer === nickname);
+      refreshNames();
+      renderFirstLine();
+      if (data.ttl) startCountdown(data.ttl);
+      document.getElementById('waitingText').style.display = 'block';
+      document.getElementById('waitingText').textContent = '对手已离开';
+      document.getElementById('turnInfo').textContent = '-';
+    }
+
+    // ========== 弹窗 ==========
+    function showModal(title, text, onConfirm, opts) {
+      opts = opts || {};
+      const modal = document.getElementById('modal');
+      if (!opts.force && modal.classList.contains('active')) return;
+
+      const btn = document.getElementById('modalBtn');
+      const btn2 = document.getElementById('modalBtn2');
+      btn.textContent = opts.confirmText || '确定';
+      if (opts.onCancel) {
+        btn2.style.display = 'inline-block';
+        btn2.textContent = opts.cancelText || '取消';
+      } else {
+        btn2.style.display = 'none';
+      }
+
+      document.getElementById('modalTitle').textContent = title;
+      document.getElementById('modalText').textContent = text;
+      modal.classList.add('active');
+      window._modalCallback = onConfirm;
+      window._modalCallback2 = opts.onCancel || null;
+    }
+
+    function handleModalConfirm() {
+      stopUndoReplyCountdown();
+      document.getElementById('modal').classList.remove('active');
+      const cb = window._modalCallback;
+      window._modalCallback = null;
+      window._modalCallback2 = null;
+      sfxClick();
+      try {
+        if (cb) cb();
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    function handleModalCancel() {
+      stopUndoReplyCountdown();
+      document.getElementById('modal').classList.remove('active');
+      const cb = window._modalCallback2;
+      window._modalCallback = null;
+      window._modalCallback2 = null;
+      sfxClick();
+      try {
+        if (cb) cb();
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    // ========== 初始化 ==========
+    (function initSoundBtn() {
+
+    })();
+
+    initBoard();
+    resizeBoard();
+    updateSafeHintBtn();
+    connectWebSocket();
+
+    window.addEventListener('resize', function () {
+      clearTimeout(window._resizeTimer);
+      window._resizeTimer = setTimeout(resizeBoard, 150);
+    });
+
+    if (mqNarrow.addEventListener) {
+      mqNarrow.addEventListener('change', function () {
+        setTimeout(resizeBoard, 150);
+      });
+    }
+
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) {
+        if (wsReady()) ws.close();
+      } else {
+        if (!wsReady()) connectWebSocket();
+      }
+    });
+  </script>
+
+  <script>
+    setInterval(function () {
+      fetch('/api/check-status/')
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+          if (data.status === 'kicked') {
+            fetch('/game_Cchess/Cchess/force_leave/', { method: 'POST' })
+              .finally(function () {
+                alert('您已被管理员删除，请重新注册');
+                window.location.href = '/';
+              });
+          }
+        })
+        .catch(function () {});
+    }, 3000);
+  </script>
+</body>
+</html>

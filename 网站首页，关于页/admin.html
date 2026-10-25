@@ -1,0 +1,257 @@
+/root/HelloWorld/templates/admin.html
+
+<!-- 管理页（删用户、封禁） -->
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>管理面板</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: "微软雅黑", "PingFang SC", sans-serif; background: #f0f2f5; padding: 20px; }
+        .container { max-width: 1100px; margin: 0 auto; }
+        .header { background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { font-size: 24px; }
+        .logout-btn { background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.4); padding: 8px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+        .logout-btn:hover { background: rgba(255,255,255,0.35); }
+        .login-box { background: white; padding: 40px; border-radius: 12px; max-width: 400px; margin: 100px auto; box-shadow: 0 4px 20px rgba(0,0,0,0.1); text-align: center; }
+        .login-box h2 { color: #667eea; margin-bottom: 20px; }
+        .login-box input { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; }
+        .login-box button { width: 100%; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none; padding: 12px; border-radius: 8px; font-size: 16px; cursor: pointer; }
+        .error { background: #fee; color: #e74c3c; padding: 10px; border-radius: 8px; margin-bottom: 15px; font-size: 14px; }
+        .section { background: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+        .section h3 { color: #667eea; margin-bottom: 15px; font-size: 18px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #eee; font-size: 14px; }
+        th { background: #f8f8ff; color: #667eea; }
+        .del-btn { background: #e74c3c; color: white; border: none; padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+        .del-btn:hover { background: #c0392b; }
+        .pin-btn { background: #f39c12; color: white; border: none; padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; margin-left: 5px; }
+        .pin-btn:hover { background: #d68910; }
+        .pin-btn.pinned { background: #95a5a6; }
+        .pin-btn.pinned:hover { background: #7f8c8d; }
+        .user-card { background: #f8f8ff; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 3px solid #667eea; }
+        .user-card h4 { color: #667eea; margin-bottom: 10px; }
+        .msg-item { background: white; padding: 8px 12px; border-radius: 6px; margin-bottom: 6px; font-size: 13px; border: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+        .msg-content { flex: 1; margin-right: 10px; }
+        .loading { text-align: center; color: #999; font-size: 12px; padding: 5px; display: none; }
+        .loading.show { display: block; }
+        .last-update { color: #bbb; font-size: 11px; text-align: right; margin-top: 10px; }
+    </style>
+</head>
+<body>
+<div class="container">
+
+{% if authenticated %}
+
+    <div class="header">
+        <h1>🔧 管理面板</h1>
+        <div>
+            <span style="font-size:12px;opacity:0.8;margin-right:15px;">🔄 每10秒自动刷新</span>
+            <form method="post" style="display:inline;">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="logout">
+                <button type="submit" class="logout-btn">🚪 退出登录</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="loading" id="loading-indicator">🔄 正在更新数据...</div>
+
+    <!-- 用户列表 -->
+    <div class="section" id="user-list-section">
+        <h3>👥 用户列表（{{ all_users|length }} 人）</h3>
+        <table id="user-table">
+            <tr><th>用户名</th><th>留言数</th><th>操作</th></tr>
+            {% for stat in user_stats %}
+            <tr>
+                <td>{{ stat.username }}</td>
+                <td>{{ stat.total }}</td>
+                <td>
+                    {% if stat.username in banned_users %}
+                        <form method="post" style="display:inline;">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="unban_user">
+                            <input type="hidden" name="unban_name" value="{{ stat.username }}">
+                            <button type="submit" class="pin-btn" style="background:#27ae60;">✅ 解禁</button>
+                        </form>
+                    {% else %}
+                        <form method="post" style="display:inline;" onsubmit="return confirm('确定禁言用户 {{ stat.username }} 吗？');">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="ban_user">
+                            <input type="hidden" name="ban_name" value="{{ stat.username }}">
+                            <button type="submit" class="pin-btn">禁言</button>
+                        </form>
+                    {% endif %}
+                    <form method="post" style="display:inline;" onsubmit="return confirm('确定删除用户 {{ stat.username }} 吗？');">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="delete_user">
+                        <input type="hidden" name="del_name" value="{{ stat.username }}">
+                        <button type="submit" class="del-btn">删除</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+
+    <!-- 用户留言详情 -->
+    <div class="section" id="user-detail-section">
+        <h3>📋 用户留言详情</h3>
+        {% for stat in user_stats %}
+        <div class="user-card">
+            <h4>{{ stat.username }}（{{ stat.total }} 条）</h4>
+            {% for msg in stat.messages %}
+            <div class="msg-item">
+                <span class="msg-content">
+                    {% if msg.is_pinned %}📌 {% endif %}{{ msg.content }}
+                </span>
+                <div>
+                    <form method="post" style="display:inline;">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="pin_msg">
+                        <input type="hidden" name="msg_id" value="{{ msg.id }}">
+                        {% if msg.is_pinned %}
+                            <button type="submit" class="pin-btn pinned">❌ 取消置顶</button>
+                        {% else %}
+                            <button type="submit" class="pin-btn">📌 置顶</button>
+                        {% endif %}
+                    </form>
+                    <form method="post" style="display:inline;" onsubmit="return confirm('确定删除这条留言吗？');">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="delete_msg">
+                        <input type="hidden" name="msg_id" value="{{ msg.id }}">
+                        <button type="submit" class="del-btn">删</button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- 全部留言 -->
+    <div class="section" id="all-msg-section">
+        <h3>📝 全部留言（{{ messages|length }} 条）</h3>
+        <table id="all-msg-table">
+            <tr><th>ID</th><th>状态</th><th>用户</th><th>内容</th><th>操作</th></tr>
+            {% for msg in messages %}
+            <tr>
+                <td>{{ msg.id }}</td>
+                <td>{% if msg.is_pinned %}📌{% endif %}</td>
+                <td>{{ msg.username }}</td>
+                <td>{{ msg.content }}</td>
+                <td>
+                    <form method="post" style="display:inline;">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="pin_msg">
+                        <input type="hidden" name="msg_id" value="{{ msg.id }}">
+                        {% if msg.is_pinned %}
+                            <button type="submit" class="pin-btn pinned">❌ 取消</button>
+                        {% else %}
+                            <button type="submit" class="pin-btn">📌 置顶</button>
+                        {% endif %}
+                    </form>
+                    <form method="post" style="display:inline;" onsubmit="return confirm('确定删除这条留言吗？');">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="delete_msg">
+                        <input type="hidden" name="msg_id" value="{{ msg.id }}">
+                        <button type="submit" class="del-btn">删除</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+
+    <div class="last-update" id="last-update"></div>
+
+{% else %}
+
+    <div class="login-box">
+        <h2>🔐 管理面板登录</h2>
+        {% if error %}
+            <div class="error">{{ error }}</div>
+        {% endif %}
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="login">
+            <input type="password" name="password" placeholder="请输入管理员密码" required autofocus>
+            <button type="submit">登录</button>
+        </form>
+    </div>
+
+{% endif %}
+
+</div>
+
+{% if authenticated %}
+<script>
+let refreshTimer;
+
+function refreshData() {
+    const indicator = document.getElementById('loading-indicator');
+    indicator.classList.add('show');
+
+    fetch(window.location.href + '?t=' + Date.now())
+        .then(res => res.text())
+        .then(html => {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+
+            const newUserTable = doc.getElementById('user-table');
+            if (newUserTable) {
+                document.getElementById('user-table').outerHTML = newUserTable.outerHTML;
+            }
+
+            const newDetailSection = doc.getElementById('user-detail-section');
+            if (newDetailSection) {
+                document.getElementById('user-detail-section').innerHTML = newDetailSection.innerHTML;
+            }
+
+            const newAllMsgTable = doc.getElementById('all-msg-table');
+            if (newAllMsgTable) {
+                document.getElementById('all-msg-table').outerHTML = newAllMsgTable.outerHTML;
+            }
+
+            const newUserH3 = doc.querySelector('#user-list-section h3');
+            if (newUserH3) {
+                document.querySelector('#user-list-section h3').textContent = newUserH3.textContent;
+            }
+
+            const newAllMsgH3 = doc.querySelector('#all-msg-section h3');
+            if (newAllMsgH3) {
+                document.querySelector('#all-msg-section h3').textContent = newAllMsgH3.textContent;
+            }
+
+            const now = new Date();
+            document.getElementById('last-update').textContent = '最后更新：' + now.toLocaleTimeString();
+
+            indicator.classList.remove('show');
+        })
+        .catch(() => {
+            indicator.classList.remove('show');
+        });
+}
+
+refreshTimer = setInterval(refreshData, 10000);
+
+document.addEventListener('visibilitychange', function() {
+    if (document.hidden) {
+        clearInterval(refreshTimer);
+    } else {
+        refreshData();
+        refreshTimer = setInterval(refreshData, 10000);
+    }
+});
+
+window.addEventListener('load', function() {
+    const now = new Date();
+    document.getElementById('last-update').textContent = '最后更新：' + now.toLocaleTimeString();
+});
+</script>
+{% endif %}
+
+</body>
+</html>

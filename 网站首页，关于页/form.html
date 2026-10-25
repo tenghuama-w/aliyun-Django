@@ -1,0 +1,73 @@
+/root/HelloWorld/templates/form.html
+
+<!-- 留言板 + 昵称注册表单 -->
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>留言表单</title>
+    <style>
+        body {
+            font-family: "微软雅黑", "PingFang SC", sans-serif;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0;
+        }
+        .card {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            width: 350px;
+            text-align: center;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+        button {
+            background: linear-gradient(135deg, #f093fb, #f5576c);
+            color: white;
+            border: none;
+            padding: 10px 25px;
+            border-radius: 25px;
+            cursor: pointer;
+        }
+        .back-link {
+            display: inline-block;
+            margin-top: 20px;
+            color: #f5576c;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>💬 留言板</h1>
+        <form method="post">
+            {% csrf_token %}
+            <input type="text" name="username" placeholder="你的名字" required>
+            <textarea name="message" placeholder="说点什么..." rows="4" required></textarea>
+            <button type="submit">提交留言</button>
+        </form>
+        
+        {% if messages %}
+            <hr>
+            <h3>最新留言：</h3>
+            {% for msg in messages %}
+                <p><strong>{{ msg.username }}</strong>：{{ msg.message }}</p >
+            {% endfor %}
+        {% endif %}
+        
+        <a href=" " class="back-link">← 返回首页</a >
+    </div>
+</body>
+</html>

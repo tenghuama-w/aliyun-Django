@@ -1,0 +1,233 @@
+/root/HelloWorld/templates/index.html
+
+<!-- 网站首页，游戏入口 -->
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>马化腾的Django</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: "微软雅黑", "PingFang SC", sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding-top: 60px; padding-bottom: 40px; }
+        nav { position: fixed; top: 0; left: 0; right: 0; background: rgba(255,255,255,0.95); padding: 15px 0; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,0.1); z-index: 100; }
+        nav a { margin: 0 20px; color: #667eea; text-decoration: none; font-weight: bold; font-size: 16px; }
+        .main-wrapper { display: flex; justify-content: center; align-items: flex-start; gap: 30px; max-width: 1200px; margin: 30px auto 0; padding: 0 20px; }
+        .hot-panel { width: 320px; background: rgba(255, 255, 255, 0.95); border-radius: 20px; padding: 25px 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); flex-shrink: 0; position: sticky; top: 90px; max-height: calc(100vh - 110px); overflow-y: auto; }
+        .hot-panel h3 { color: #667eea; font-size: 18px; margin-bottom: 15px; text-align: center; }
+        .hot-item { display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
+        .hot-rank { font-weight: bold; width: 34px; text-align: center; flex-shrink: 0; }
+        .hot-title { color: #333; text-decoration: none; flex: 1; margin-left: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .hot-title:hover { color: #667eea; }
+        .hot-value { color: #bbb; font-size: 12px; margin-left: 10px; flex-shrink: 0; }
+        .card { background: rgba(255, 255, 255, 0.95); padding: 50px 40px; border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); text-align: center; width: 500px; flex-shrink: 0; }
+        h1 { color: #667eea; font-size: 32px; margin-bottom: 15px; }
+        .msg { color: #555; font-size: 20px; margin-bottom: 25px; line-height: 1.6; }
+        .time { color: #999; font-size: 14px; border-top: 1px solid #eee; padding-top: 20px; }
+        .badge { display: inline-block; background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 5px 15px; border-radius: 20px; font-size: 12px; margin-bottom: 20px; }
+        .message-section { border-top: 1px solid #eee; margin-top: 25px; padding-top: 25px; text-align: left; }
+        .message-section h3 { color: #667eea; font-size: 18px; margin-bottom: 15px; text-align: center; }
+        .message-section input, .message-section textarea { width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 8px; font-family: "微软雅黑", "PingFang SC", sans-serif; font-size: 14px; box-sizing: border-box; }
+        .message-section textarea { resize: vertical; }
+        .message-section button { width: 100%; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none; padding: 12px; border-radius: 8px; font-size: 16px; cursor: pointer; transition: transform 0.2s ease; }
+        .message-section button:hover { transform: scale(1.02); }
+        .message-list { margin-top: 20px; max-height: 500px; overflow-y: auto; }
+        .message-item { background: #f8f8ff; padding: 12px 15px; border-radius: 10px; margin-bottom: 10px; border-left: 3px solid #667eea; text-align: left; }
+        .message-item strong { color: #667eea; font-size: 14px; }
+        .message-item p { color: #555; font-size: 14px; margin-top: 5px; line-height: 1.5; }
+        .message-item.pinned { background: linear-gradient(135deg, #fff9e6, #fef3d8); border-left: 3px solid #f39c12; border: 1px solid #f0d080; }
+        .pin-icon { margin-right: 5px; font-size: 14px; }
+        .no-messages { text-align: center; color: #bbb; font-size: 14px; padding: 10px; }
+        .error-box { background: #fee; border: 1px solid #e74c3c; color: #e74c3c; padding: 10px 15px; border-radius: 8px; margin-bottom: 15px; text-align: center; font-size: 14px; }
+        .locked-hint { color: #667eea; font-size: 13px; margin-bottom: 10px; }
+        @media (max-width: 900px) {
+            .main-wrapper { flex-direction: column; align-items: center; }
+            .hot-panel { width: 100%; max-width: 500px; position: static; max-height: none; }
+            .card { width: 100%; max-width: 500px; }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="/">🏠 首页</a>
+        <a href="/game_wzq/" {% if not nickname %}onclick="alert('请先在留言板留言设置昵称！');return false;"{% endif %}>🎮 娱乐</a>
+        <a href="/about/">👤 关于网站</a>
+    </nav>
+
+    <div class="main-wrapper">
+        <!-- 左侧：热搜 -->
+        <div class="hot-panel">
+            <h3>🔥 百度热搜</h3>
+            <div id="hot-list">
+                <div style="color: #bbb; font-size: 14px; text-align: center; padding: 20px;">加载中...</div>
+            </div>
+        </div>
+
+        <!-- 中间：留言板 -->
+        <div class="card">
+            <div class="badge">🚀 Django 项目</div>
+            <h1>{{ title }}</h1>
+            <div class="msg">{{ message }}</div>
+            <div class="time">🕐 当前时间：<span id="clock"></span></div>
+
+            <div class="message-section">
+                <h3>💬 留言板</h3>
+
+                {% if error_msg %}
+                    <div class="error-box">{{ error_msg }}</div>
+                {% endif %}
+
+                <form method="post">
+                    {% csrf_token %}
+                    {% if nickname %}
+                        <input type="text" name="username" value="{{ nickname }}" readonly style="background:#f5f5f5;color:#999;">
+                        <div class="locked-hint">✅ 名字已锁定，不可更改</div>
+                        {% if is_banned %}
+                            <textarea name="message" placeholder="🚫 你已被禁言，无法发言" rows="3" disabled style="background:#f5f5f5;color:#999;"></textarea>
+                            <button type="button" disabled style="background:#95a5a6;cursor:not-allowed;">无法提交</button>
+                        {% else %}
+                            <textarea name="message" placeholder="说点什么..." rows="3" required></textarea>
+                            <button type="submit">提交留言</button>
+                        {% endif %}
+                    {% else %}
+                        <input type="text" name="username" placeholder="起一个名字" required autofocus id="nick-input" autocomplete="off">
+                        <div id="nick-tip" style="display:none;color:#e74c3c;font-size:12px;margin-bottom:10px;text-align:left;line-height:1.8;">
+                            ⚠️ 输入后不可更改<br>
+                            ⚠️ 被删除后不能再次使用上次名字
+                        </div>
+                        <script>
+                        document.getElementById('nick-input').addEventListener('focus', function(){
+                            document.getElementById('nick-tip').style.display = 'block';
+                        });
+                        document.getElementById('nick-input').addEventListener('blur', function(){
+                            document.getElementById('nick-tip').style.display = 'none';
+                        });
+                        </script>
+                        <textarea name="message" placeholder="说点什么..." rows="3" required></textarea>
+                        <button type="submit">提交留言</button>
+                    {% endif %}
+                </form>
+
+                <div class="message-list" id="message-list">
+                    {% if messages %}
+                        {% for msg in messages %}
+                            <div class="message-item{% if msg.is_pinned %} pinned{% endif %}">
+                                {% if msg.is_pinned %}<span class="pin-icon">📌</span>{% endif %}
+                                <strong>{{ msg.username }}</strong>
+                                <p>{{ msg.content }}</p>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="no-messages">暂无留言，来抢沙发吧~</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function updateClock() {
+            const now = new Date();
+            const y = now.getFullYear();
+            const m = String(now.getMonth() + 1).padStart(2, '0');
+            const d = String(now.getDate()).padStart(2, '0');
+            const h = String(now.getHours()).padStart(2, '0');
+            const min = String(now.getMinutes()).padStart(2, '0');
+            const s = String(now.getSeconds()).padStart(2, '0');
+            document.getElementById('clock').textContent = `${y}-${m}-${d} ${h}:${min}:${s}`;
+        }
+        updateClock();
+        setInterval(updateClock, 1000);
+    </script>
+
+    <script>
+        function loadHotSearch() {
+            fetch('/api/hot/')
+                .then(res => res.json())
+                .then(data => {
+                    const container = document.getElementById('hot-list');
+                    if (data.hot && data.hot.length > 0) {
+                        let html = '';
+                        data.hot.forEach(function(item){
+                            var rc = item.is_top ? '#ff9800' : (Number(item.rank) <= 3 ? '#f5576c' : '#999');
+                            html += '<div class="hot-item">'
+                                + '<span class="hot-rank" style="color:'+rc+'">'+item.rank+'</span>'
+                                + '<a href="'+(item.url||'#')+'" target="_blank" class="hot-title">'+item.title+'</a>'
+                                + '<span class="hot-value">'+item.hot_value+'</span></div>';
+                        });
+                        container.innerHTML = html;
+                    } else {
+                        container.innerHTML = '<div style="color:#e74c3c;font-size:13px;text-align:center;">热搜失败：' + (data.error||'empty') + '</div>';
+                    }
+                })
+                .catch(() => {
+                    document.getElementById('hot-list').innerHTML = '<div style="color:#e74c3c;font-size:13px;text-align:center;">热搜请求异常</div>';
+                });
+        }
+        loadHotSearch();
+        setInterval(loadHotSearch, 30000);
+    </script>
+
+    <!-- 留言列表轮询 + visibilitychange -->
+    <script>
+    let msgTimer;
+
+    function refreshMessages() {
+        fetch('/api/messages/')
+            .then(res => res.text())
+            .then(html => {
+                document.getElementById('message-list').innerHTML = html;
+            })
+            .catch(() => {});
+    }
+
+    function startMsgPoll() {
+        refreshMessages();
+        msgTimer = setInterval(refreshMessages, 5000);
+    }
+
+    function stopMsgPoll() {
+        clearInterval(msgTimer);
+    }
+
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+            stopMsgPoll();
+        } else {
+            startMsgPoll();
+        }
+    });
+
+    window.addEventListener('load', startMsgPoll);
+    </script>
+
+    <!-- 实时检测是否被删除 -->
+    <script>
+    {% if nickname %}
+    setInterval(function() {
+        fetch('/api/check-status/')
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'kicked') {
+                    alert('您已被删除，请重新注册');
+                    location.reload();
+                } else if (data.status === 'banned') {
+                    if (!sessionStorage.getItem('banned_alerted')) {
+                        sessionStorage.setItem('banned_alerted', '1');
+                        alert('你已被禁言');
+                        location.reload();
+                    }
+                } else if (data.status === 'ok') {
+                    if (sessionStorage.getItem('banned_alerted')) {
+                        sessionStorage.removeItem('banned_alerted');
+                        alert('你已被解除禁言');
+                        location.reload();
+                    }
+                }
+            });
+    }, 3000);
+    {% endif %}
+
+    </script>
+</body>
+</html>

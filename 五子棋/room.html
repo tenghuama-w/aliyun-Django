@@ -1,0 +1,1563 @@
+/root/HelloWorld/game_wuziqi/templates/game_wuziqi/room.html
+
+<!-- 五子棋对局页 -->
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="color-scheme" content="only light">
+    <title>房间 {{ room_id }} - 五子棋</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #fff;
+        }
+        .navbar {
+            background: rgba(0,0,0,0.3);
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: nowrap;
+        }
+        .navbar a { color: #aaa; text-decoration: none; font-size: 14px; white-space: nowrap; }
+        .navbar a:hover { color: #fff; }
+        .navbar .room-badge {
+            background: #e94560;
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: bold;
+            letter-spacing: 2px;
+            white-space: nowrap;
+        }
+        .navbar .user-info {
+            color: #888; font-size: 13px; margin-left: auto; white-space: nowrap;
+        }
+
+        .sound-btn {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.15);
+            color: #fff;
+            font-size: 15px;
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            cursor: pointer;
+            line-height: 1;
+            padding: 0;
+            flex-shrink: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .sound-btn:hover { background: rgba(255,255,255,0.18); }
+        .sound-btn.off { opacity: 0.4; }
+
+        .container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: calc(100vh - 55px);
+            gap: 40px;
+            padding: 20px;
+        }
+        .game-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        #board {
+            background: #dcb35c;
+            border-radius: 8px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            cursor: pointer;
+            display: block;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+            touch-action: manipulation;
+        }
+        .sidebar {
+            width: 250px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .row-group {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .action-row {
+            display: flex !important;
+            flex-direction: row !important;
+            gap: 10px;
+            width: 100%;
+        }
+        .action-row > * { flex: 1; }
+        .info-card {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 20px;
+        }
+        .info-card h3 { font-size: 14px; color: #888; margin-bottom: 10px; }
+        .info-card .value { font-size: 18px; font-weight: bold; }
+        .player-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .player-item:last-child { border-bottom: none; }
+        .stone { width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0; }
+        .stone-black { background: #000; }
+        .stone-white { background: #fff; border: 1px solid #ccc; }
+        .waiting-text {
+            text-align: center;
+            color: #ffd166;
+            font-size: 22px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            margin-top: 15px;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+        }
+        .timer-card {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 15px 20px;
+            font-size: 13px;
+            color: #bbb;
+            line-height: 1.6;
+            text-align: center;
+        }
+        .timer-card .countdown {
+            display: block;
+            font-size: 20px;
+            font-weight: bold;
+            color: #e94560;
+            margin-bottom: 4px;
+        }
+        .ready-status { font-size: 12px; color: #2ecc71; }
+        .turn-status { font-size: 12px; color: #ffd166; font-weight: bold; }
+        .opp-status { font-size: 12px; color: #95a5a6; }
+
+        #moveTimerWrap { margin-top: 8px; }
+        .move-timer {
+            font-size: 32px;
+            font-weight: bold;
+            color: #ffd166;
+            line-height: 1.1;
+            text-align: center;
+        }
+        .move-timer.opponent { color: #95a5a6; }
+        .move-timer.danger { color: #e74c3c; animation: pulse 0.6s infinite; }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.35; }
+        }
+        .move-bar {
+            height: 4px;
+            background: rgba(255,255,255,0.12);
+            border-radius: 2px;
+            margin-top: 6px;
+            overflow: hidden;
+        }
+        .move-bar-inner {
+            height: 100%;
+            width: 100%;
+            background: #ffd166;
+            border-radius: 2px;
+            transition: width 0.2s linear;
+        }
+        .move-bar-inner.danger { background: #e74c3c; }
+        .move-tip { font-size: 11px; color: #888; margin-top: 4px; text-align: center; }
+
+        .btn {
+            background: #e94560;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 15px;
+        }
+        .btn:hover { background: #ff6b81; }
+        .btn-ready-done { background: #2ecc71; }
+        .btn-ready-done:hover { background: #27ae60; }
+        .btn-action { background: #4a6fa5; }
+        .btn-action:hover { background: #5a82bd; }
+        .btn-surrender { background: #8e44ad; }
+        .btn-surrender:hover { background: #9b59b6; }
+        .btn-disabled { background: #444 !important; color: #888 !important; cursor: not-allowed; }
+        .btn-disabled:hover { background: #444 !important; }
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal {
+            background: #1a1a2e;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px;
+            padding: 40px;
+            text-align: center;
+            max-width: 400px;
+            animation: modalIn 0.22s ease-out;
+        }
+        @keyframes modalIn {
+            from { opacity: 0; transform: scale(0.92); }
+            to   { opacity: 1; transform: scale(1); }
+        }
+        .modal h2 { font-size: 20px; margin-bottom: 15px; }
+        .modal p { color: #888; margin-bottom: 25px; font-size: 14px; white-space: pre-line; }
+        .modal-buttons { display: flex; gap: 12px; justify-content: center; }
+        .modal-buttons .btn { min-width: 100px; }
+
+        @media (max-width: 768px) {
+            .navbar { padding: 10px 12px; gap: 10px; }
+            .navbar a { font-size: 13px; }
+            .navbar .room-badge { font-size: 12px; padding: 3px 8px; letter-spacing: 1px; }
+            .navbar .user-info { font-size: 12px; }
+            .sound-btn { width: 28px; height: 28px; font-size: 13px; }
+            .container {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 12px;
+                padding: 10px;
+                min-height: calc(100vh - 50px);
+            }
+            .sidebar { order: -1; width: 100%; gap: 10px; }
+            .row-group { flex-direction: row; gap: 10px; }
+            .row-group > * { flex: 1; min-width: 0; }
+            .info-card { padding: 12px; }
+            .info-card h3 { font-size: 12px; margin-bottom: 6px; }
+            .info-card .value { font-size: 16px; }
+            .timer-card { padding: 10px 12px; font-size: 11px; }
+            .timer-card .countdown { font-size: 17px; margin-bottom: 2px; }
+            .player-item { padding: 7px 0; gap: 8px; }
+            .stone { width: 16px; height: 16px; }
+            .btn { padding: 9px 12px; font-size: 14px; width: 100%; }
+            #readyCard { display: flex; flex-direction: column; justify-content: center; }
+            #readyCard div { font-size: 11px; margin-top: 6px; }
+            .action-row .btn { font-size: 13px; padding: 9px 6px; }
+            .move-timer { font-size: 26px; }
+            .game-area { flex: 1; min-height: 0; justify-content: center; }
+            .waiting-text { font-size: 17px; margin-top: 10px; }
+            .modal { padding: 28px; max-width: 88%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <a href="/game_wzq/gobang/" onclick="leaveRoom(event)">← 退出房间</a>
+        <span class="room-badge">房间 {{ room_id }}</span>
+        <span class="user-info">玩家：{{ nickname }}</span>
+        <button class="sound-btn" id="soundBtn" onclick="toggleSound(event)">🔊</button>
+    </div>
+
+    <div class="container">
+        <div class="game-area">
+            <canvas id="board" width="600" height="600"></canvas>
+            <p class="waiting-text" id="waitingText">等待对手加入...</p>
+        </div>
+
+        <div class="sidebar">
+            <div class="row-group">
+                <div class="timer-card" id="timerCard">
+                    <span class="countdown" id="countdown">--:--</span>
+                    ⏰ 倒计时结束前未开始，房间自动解散
+                </div>
+
+                <div class="info-card" id="readyCard" style="display:none; text-align:center;">
+                    <button class="btn" id="readyBtn" onclick="toggleReady()">准备</button>
+                    <div style="font-size:12px; color:#888; margin-top:10px;">双方都准备后自动开始对局</div>
+                </div>
+            </div>
+
+            <div class="row-group">
+                <div class="info-card">
+                    <h3>对局信息</h3>
+                    <div class="player-item">
+                        <div class="stone stone-black"></div>
+                        <span id="player1Name">房主</span>
+                        <span style="margin-left:auto;" class="ready-status" id="p1Status"></span>
+                    </div>
+                    <div class="player-item">
+                        <div class="stone stone-white"></div>
+                        <span id="player2Name">等待加入...</span>
+                        <span style="margin-left:auto;" class="ready-status" id="p2Status"></span>
+                    </div>
+                </div>
+                <div class="info-card">
+                    <h3>当前回合</h3>
+                    <div class="value" id="turnInfo">-</div>
+                    <div id="moveTimerWrap" style="display:none;">
+                        <div class="move-timer" id="moveTimer">45</div>
+                        <div class="move-bar"><div class="move-bar-inner" id="moveBarInner"></div></div>
+                        <div class="move-tip" id="moveTip">剩余思考时间</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row-group" id="actionWrap" style="display:none;">
+                <div class="action-row">
+                    <button class="btn btn-action" id="undoBtn" onclick="requestUndo()">悔棋</button>
+                    <button class="btn btn-surrender" id="surrenderBtn" onclick="requestSurrender()">投降</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="modal">
+        <div class="modal">
+            <h2 id="modalTitle">提示</h2>
+            <p id="modalText"></p>
+            <div class="modal-buttons">
+                <button class="btn" id="modalBtn2" onclick="handleModalCancel()" style="display:none;">拒绝</button>
+                <button class="btn" id="modalBtn" onclick="handleModalConfirm()">确定</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const roomId = '{{ room_id }}';
+        const nickname = '{{ nickname|escapejs }}';
+        const isOwner = {{ is_owner|yesno:"true,false" }};
+        const MOVE_TIME_LIMIT = 45;
+
+        // ========== 音效模块（Web Audio 合成，零文件零流量）==========
+        let audioCtx = null;
+        let soundOn = true;
+
+        try {
+            const saved = localStorage.getItem('wzq_sound');
+            if (saved !== null) soundOn = (saved === '1');
+        } catch (e) {}
+
+        function ensureAudio() {
+            if (!soundOn) return null;
+            try {
+                if (!audioCtx) {
+                    const AC = window.AudioContext || window.webkitAudioContext;
+                    if (!AC) return null;
+                    audioCtx = new AC();
+                }
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                return audioCtx;
+            } catch (e) { return null; }
+        }
+
+        // 浏览器要求"用户手势"后才能出声：首次点击/触摸即解锁
+        function unlockAudio() { ensureAudio(); }
+        document.addEventListener('touchstart', unlockAudio, { once: true, passive: true });
+        document.addEventListener('click', unlockAudio, { once: true });
+
+        function playTone(freq, dur, type, vol, delay) {
+            const ctx = ensureAudio();
+            if (!ctx) return;
+            try {
+                const t0 = ctx.currentTime + (delay || 0);
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = type || 'sine';
+                osc.frequency.setValueAtTime(freq, t0);
+                gain.gain.setValueAtTime(0, t0);
+                gain.gain.linearRampToValueAtTime(vol || 0.25, t0 + 0.005);
+                gain.gain.exponentialRampToValueAtTime(0.0001, t0 + (dur || 0.12));
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(t0);
+                osc.stop(t0 + (dur || 0.12) + 0.02);
+            } catch (e) {}
+        }
+
+        // 滑音：频率从 from 线性扫到 to（用于胜利连线）
+        function sfxGlide(from, to, dur) {
+            const ctx = ensureAudio();
+            if (!ctx) return;
+            try {
+                const t0 = ctx.currentTime;
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(from, t0);
+                osc.frequency.linearRampToValueAtTime(to, t0 + dur);
+                gain.gain.setValueAtTime(0, t0);
+                gain.gain.linearRampToValueAtTime(0.24, t0 + 0.02);
+                gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(t0);
+                osc.stop(t0 + dur + 0.02);
+            } catch (e) {}
+        }
+
+        // 落子："嗒"，黑子高一点、白子低一点，带一点点泛音更像敲木盘
+        function sfxPlace(color) {
+            const base = (color === 1) ? 880 : 680;
+            playTone(base, 0.09, 'triangle', 0.30, 0);
+            playTone(base * 2.02, 0.05, 'sine', 0.10, 0.005);
+        }
+
+        // 对局开始：两音上行（C→G 纯五度），明亮有仪式感
+        function sfxStart() {
+            playTone(523.25, 0.14, 'triangle', 0.24, 0);
+            playTone(783.99, 0.30, 'triangle', 0.24, 0.13);
+        }
+
+        // 胜利连线：五个子依次亮起，音阶逐级升高
+        const WIN_STEP_FREQ = [523.25, 587.33, 659.25, 783.99, 880.00];
+        function sfxWinStep(i) {
+            const f = WIN_STEP_FREQ[Math.min(i, WIN_STEP_FREQ.length - 1)];
+            playTone(f, 0.14, 'triangle', 0.26, 0);
+        }
+
+        // 胜利：上行 do-mi-so
+        function sfxWin() {
+            playTone(523.25, 0.16, 'triangle', 0.26, 0);
+            playTone(659.25, 0.16, 'triangle', 0.26, 0.14);
+            playTone(783.99, 0.36, 'triangle', 0.30, 0.28);
+        }
+
+        // 失败：下行两音
+        function sfxLose() {
+            playTone(392.00, 0.20, 'sine', 0.24, 0);
+            playTone(261.63, 0.42, 'sine', 0.24, 0.18);
+        }
+
+        // 平局：两声同音
+        function sfxDraw() {
+            playTone(440, 0.18, 'sine', 0.20, 0);
+            playTone(440, 0.18, 'sine', 0.20, 0.22);
+        }
+
+        // 按钮轻反馈
+        function sfxClick() {
+            playTone(1200, 0.04, 'square', 0.07, 0);
+        }
+
+        // 倒计时最后 5 秒滴答
+        function sfxTick() {
+            playTone(1000, 0.05, 'square', 0.09, 0);
+        }
+
+        // 对手加入提示
+        function sfxJoin() {
+            playTone(587.33, 0.10, 'sine', 0.20, 0);
+            playTone(880.00, 0.14, 'sine', 0.20, 0.10);
+        }
+
+        // 悔棋请求提示
+        function sfxNotify() {
+            playTone(740, 0.12, 'sine', 0.18, 0);
+            playTone(988, 0.14, 'sine', 0.18, 0.12);
+        }
+
+        function toggleSound(e) {
+            if (e) { e.stopPropagation(); e.preventDefault(); }
+            soundOn = !soundOn;
+            try { localStorage.setItem('wzq_sound', soundOn ? '1' : '0'); } catch (err) {}
+            const btn = document.getElementById('soundBtn');
+            btn.textContent = soundOn ? '🔊' : '🔇';
+            btn.classList.toggle('off', !soundOn);
+            if (soundOn) sfxClick();
+        }
+
+        let ws = null;
+        let pingTimer = null;
+        let syncTimer = null;
+        let playerRole = null;
+        let gameState = 'waiting';
+        let remainSeconds = 0;
+        let countdownTimer = null;
+        let myReady = false;
+        let roomStatus = 'waiting';
+        let opponentLost = false;
+        let statusToast = '';
+        let toastTimer = null;
+        let selfLeaving = false;
+
+        let board = [];
+        let currentTurn = '';
+        let winner = '';
+        let overReason = '';
+        let gameOverShown = false;
+        let ownerName = '';
+        let player2Name = '';
+        let lastX = -1;
+        let lastY = -1;
+
+        let undoPendingBy = '';
+        let undoLocked = false;
+        let undoCountdownTimer = null;
+
+        let moveDeadline = 0;
+        let moveTimerInterval = null;
+        let lastTickSec = -1;
+
+        // ========== 胜利动画状态 ==========
+        // 动画特效直接画进 renderStones()，所以 5 秒轮询重绘不会打断它
+        let winAnim = null;
+        const WIN_LIT_STEP = 110;    // 每颗获胜子亮起间隔（ms）
+        const WIN_LINE_STEP = 320;   // 连线生长时长（ms）
+        const WIN_HOLD = 260;        // 定格展示时长（ms）
+
+        const canvas = document.getElementById('board');
+        const ctx = canvas.getContext('2d');
+        const BOARD_SIZE = 15;
+        let CELL_SIZE = 40;
+        let PADDING = 20;
+        let viewSize = 600;
+        const mqNarrow = window.matchMedia('(max-width: 768px)');
+
+        // 从最后落子点反查五连坐标（按连线方向排序，首尾即两端）
+        function findWinCells(b, x, y) {
+            const v = b[x][y];
+            if (!v) return null;
+            const dirs = [[1, 0], [0, 1], [1, 1], [1, -1]];
+            for (const d of dirs) {
+                const dx = d[0], dy = d[1];
+                const cells = [[x, y]];
+                for (let s = 1; s < 5; s++) {
+                    const nx = x + dx * s, ny = y + dy * s;
+                    if (nx < 0 || nx >= BOARD_SIZE || ny < 0 || ny >= BOARD_SIZE || b[nx][ny] !== v) break;
+                    cells.push([nx, ny]);
+                }
+                for (let s = 1; s < 5; s++) {
+                    const nx = x - dx * s, ny = y - dy * s;
+                    if (nx < 0 || nx >= BOARD_SIZE || ny < 0 || ny >= BOARD_SIZE || b[nx][ny] !== v) break;
+                    cells.unshift([nx, ny]);
+                }
+                if (cells.length >= 5) return cells;
+            }
+            return null;
+        }
+
+        function startWinAnimation(cells) {
+            stopMoveTimer();
+            winAnim = {
+                cells: cells,
+                start: (window.performance && performance.now) ? performance.now() : Date.now(),
+                litPlayed: -1,
+                lineStarted: false
+            };
+            requestAnimationFrame(winAnimTick);
+        }
+
+        function nowMs() {
+            return (window.performance && performance.now) ? performance.now() : Date.now();
+        }
+
+        function winAnimTick() {
+            if (!winAnim) return;
+            const t = nowMs() - winAnim.start;
+            const n = winAnim.cells.length;
+            const litTotal = n * WIN_LIT_STEP;
+            const lineEnd = litTotal + WIN_LINE_STEP;
+            const endAll = lineEnd + WIN_HOLD;
+
+            // 依次亮起：音阶递增
+            const lit = Math.min(n, Math.floor(t / WIN_LIT_STEP) + 1);
+            if (lit - 1 > winAnim.litPlayed) {
+                for (let i = winAnim.litPlayed + 1; i < lit; i++) sfxWinStep(i);
+                winAnim.litPlayed = lit - 1;
+            }
+
+            // 连线：一条从低到高的滑音
+            if (!winAnim.lineStarted && t >= litTotal) {
+                winAnim.lineStarted = true;
+                sfxGlide(392.00, 1046.50, WIN_LINE_STEP / 1000);
+            }
+
+            if (t >= endAll) {
+                winAnim = null;
+                renderStones();
+                showGameOver();
+                return;
+            }
+
+            renderStones();
+            requestAnimationFrame(winAnimTick);
+        }
+
+        function wsReady() {
+            return !!ws && ws.readyState === WebSocket.OPEN;
+        }
+
+        function refreshToastDone() {
+            statusToast = '';
+            if (wsReady()) {
+                ws.send(JSON.stringify({ action: 'sync_state' }));
+            }
+        }
+
+        function setWaitingText(text) {
+            if (statusToast) return;
+            document.getElementById('waitingText').textContent = text;
+        }
+
+        function showToast(text, seconds) {
+            statusToast = text;
+            document.getElementById('waitingText').style.display = 'block';
+            document.getElementById('waitingText').textContent = text;
+            if (toastTimer) clearTimeout(toastTimer);
+            toastTimer = setTimeout(refreshToastDone, (seconds || 3) * 1000);
+        }
+
+        function startMoveTimer(leftSeconds) {
+            stopMoveTimer();
+            if (!leftSeconds || leftSeconds <= 0) return;
+            moveDeadline = Date.now() / 1000 + leftSeconds;
+            lastTickSec = -1;
+            updateMoveTimer();
+            moveTimerInterval = setInterval(updateMoveTimer, 200);
+        }
+
+        function stopMoveTimer() {
+            if (moveTimerInterval) {
+                clearInterval(moveTimerInterval);
+                moveTimerInterval = null;
+            }
+            moveDeadline = 0;
+            lastTickSec = -1;
+            document.getElementById('moveTimerWrap').style.display = 'none';
+        }
+
+        function updateMoveTimer() {
+            const wrap = document.getElementById('moveTimerWrap');
+            if (!moveDeadline || roomStatus !== 'playing' || winner || undoPendingBy) {
+                wrap.style.display = 'none';
+                return;
+            }
+            const left = moveDeadline - Date.now() / 1000;
+            if (left <= 0) {
+                wrap.style.display = 'none';
+                return;
+            }
+            wrap.style.display = 'block';
+            const secs = Math.ceil(left);
+            const el = document.getElementById('moveTimer');
+            const bar = document.getElementById('moveBarInner');
+            const tip = document.getElementById('moveTip');
+            el.textContent = secs;
+
+            const pct = Math.max(0, Math.min(100, (left / MOVE_TIME_LIMIT) * 100));
+            bar.style.width = pct + '%';
+
+            const mine = (currentTurn === nickname);
+            const danger = (secs <= 5);
+            el.className = 'move-timer' + (mine ? '' : ' opponent') + (danger ? ' danger' : '');
+            bar.className = 'move-bar-inner' + (danger ? ' danger' : '');
+            tip.textContent = mine ? '你的剩余思考时间' : '对手思考中';
+
+            if (mine && danger) {
+                if (secs !== lastTickSec) {
+                    lastTickSec = secs;
+                    sfxTick();
+                }
+            } else {
+                lastTickSec = -1;
+            }
+        }
+
+        function applyMoveTimer(leftSeconds) {
+            if (roomStatus === 'playing' && !winner && !undoPendingBy && leftSeconds > 0) {
+                startMoveTimer(leftSeconds);
+            } else {
+                stopMoveTimer();
+            }
+        }
+
+        function resizeBoard() {
+            let size;
+            if (mqNarrow.matches) {
+                const area = document.querySelector('.game-area');
+                const wt = document.getElementById('waitingText');
+                const availW = area.clientWidth;
+                const availH = area.clientHeight - wt.offsetHeight - 24;
+                size = Math.max(240, Math.min(availW, availH));
+            } else {
+                size = Math.min(600, window.innerWidth - 80, window.innerHeight - 140);
+            }
+
+            viewSize = size;
+
+            const dpr = Math.min(window.devicePixelRatio || 1, 3);
+            canvas.width = Math.round(size * dpr);
+            canvas.height = Math.round(size * dpr);
+            canvas.style.width = size + 'px';
+            canvas.style.height = size + 'px';
+
+            PADDING = size / 30;
+            CELL_SIZE = size / 15;
+
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            renderStones();
+        }
+
+        function initBoard() {
+            board = [];
+            for (let i = 0; i < BOARD_SIZE; i++) {
+                board.push(new Array(BOARD_SIZE).fill(0));
+            }
+            lastX = -1;
+            lastY = -1;
+        }
+
+        function drawBoard() {
+            const size = viewSize;
+            ctx.fillStyle = '#dcb35c';
+            ctx.fillRect(0, 0, size, size);
+
+            ctx.strokeStyle = '#8B6914';
+            ctx.lineWidth = Math.max(1, size / 600);
+
+            for (let i = 0; i < BOARD_SIZE; i++) {
+                ctx.beginPath();
+                ctx.moveTo(PADDING, PADDING + i * CELL_SIZE);
+                ctx.lineTo(PADDING + (BOARD_SIZE - 1) * CELL_SIZE, PADDING + i * CELL_SIZE);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(PADDING + i * CELL_SIZE, PADDING);
+                ctx.lineTo(PADDING + i * CELL_SIZE, PADDING + (BOARD_SIZE - 1) * CELL_SIZE);
+                ctx.stroke();
+            }
+
+            const stars = [3, 7, 11];
+            ctx.fillStyle = '#8B6914';
+            const sr = Math.max(2, size / 150);
+            for (const x of stars) {
+                for (const y of stars) {
+                    ctx.beginPath();
+                    ctx.arc(PADDING + x * CELL_SIZE, PADDING + y * CELL_SIZE, sr, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+        }
+
+        function drawStone(x, y, color) {
+            const cx = PADDING + x * CELL_SIZE;
+            const cy = PADDING + y * CELL_SIZE;
+            const radius = viewSize * 17 / 600;
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+            ctx.fillStyle = (color === 1) ? '#000' : '#fff';
+            ctx.fill();
+            ctx.strokeStyle = '#555';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        }
+
+        // 胜利动画覆盖层：蓝圈依次亮起 + 红线生长
+        function drawWinOverlay() {
+            if (!winAnim) return;
+            const t = nowMs() - winAnim.start;
+            const n = winAnim.cells.length;
+            const litTotal = n * WIN_LIT_STEP;
+            const ringR = viewSize * 20 / 600;
+            const lw = Math.max(2, viewSize / 200);
+
+            const litCount = Math.min(n, Math.floor(t / WIN_LIT_STEP) + 1);
+            for (let i = 0; i < litCount; i++) {
+                const c = winAnim.cells[i];
+                const cx = PADDING + c[0] * CELL_SIZE;
+                const cy = PADDING + c[1] * CELL_SIZE;
+                ctx.beginPath();
+                ctx.arc(cx, cy, ringR, 0, Math.PI * 2);
+                ctx.strokeStyle = '#2196f3';
+                ctx.lineWidth = lw;
+                ctx.stroke();
+            }
+
+            if (t >= litTotal && n >= 2) {
+                const p = Math.min(1, (t - litTotal) / WIN_LINE_STEP);
+                const a = winAnim.cells[0];
+                const b = winAnim.cells[n - 1];
+                const ax = PADDING + a[0] * CELL_SIZE, ay = PADDING + a[1] * CELL_SIZE;
+                const bx = PADDING + b[0] * CELL_SIZE, by = PADDING + b[1] * CELL_SIZE;
+                ctx.beginPath();
+                ctx.moveTo(ax, ay);
+                ctx.lineTo(ax + (bx - ax) * p, ay + (by - ay) * p);
+                ctx.strokeStyle = '#e74c3c';
+                ctx.lineWidth = Math.max(3, viewSize / 150);
+                ctx.lineCap = 'round';
+                ctx.stroke();
+                ctx.lineCap = 'butt';
+            }
+        }
+
+        function renderStones() {
+            drawBoard();
+            for (let x = 0; x < BOARD_SIZE; x++) {
+                for (let y = 0; y < BOARD_SIZE; y++) {
+                    if (board[x][y]) drawStone(x, y, board[x][y]);
+                }
+            }
+            // 胜利动画期间不画"最后落子"蓝圈，避免提前剧透亮起顺序
+            if (lastX >= 0 && lastY >= 0 && !winAnim) {
+                const cx = PADDING + lastX * CELL_SIZE;
+                const cy = PADDING + lastY * CELL_SIZE;
+                ctx.beginPath();
+                ctx.arc(cx, cy, viewSize * 20 / 600, 0, Math.PI * 2);
+                ctx.strokeStyle = '#2196f3';
+                ctx.lineWidth = Math.max(2, viewSize / 200);
+                ctx.stroke();
+            }
+            drawWinOverlay();
+        }
+
+        function loadBoardFromStr(s) {
+            initBoard();
+            if (!s) return;
+            try {
+                s.split(',').forEach(c => {
+                    if (!c) return;
+                    const parts = c.split(':');
+                    board[parseInt(parts[0])][parseInt(parts[1])] = parseInt(parts[2]);
+                });
+            } catch (e) {}
+        }
+
+        function setLastFromData(lx, ly) {
+            if (lx === '' || lx === undefined || lx === null || ly === '' || ly === undefined || ly === null) {
+                lastX = -1;
+                lastY = -1;
+            } else {
+                lastX = parseInt(lx);
+                lastY = parseInt(ly);
+            }
+        }
+
+        function formatTime(sec) {
+            if (sec < 0) sec = 0;
+            const m = Math.floor(sec / 60);
+            const s = sec % 60;
+            return (m < 10 ? '0' + m : m) + ':' + (s < 10 ? '0' + s : s);
+        }
+
+        function startCountdown(sec) {
+            remainSeconds = sec;
+            if (countdownTimer) clearInterval(countdownTimer);
+            document.getElementById('countdown').textContent = formatTime(remainSeconds);
+            countdownTimer = setInterval(() => {
+                remainSeconds--;
+                if (remainSeconds <= 0) {
+                    remainSeconds = 0;
+                    clearInterval(countdownTimer);
+                }
+                document.getElementById('countdown').textContent = formatTime(remainSeconds);
+            }, 1000);
+        }
+
+        function stopCountdown() {
+            if (countdownTimer) clearInterval(countdownTimer);
+        }
+
+        function clearReadyMarkers() {
+            document.getElementById('p1Status').textContent = '';
+            document.getElementById('p2Status').textContent = '';
+        }
+
+        function updatePanels(p2Name, status) {
+            const hasBoth = !!p2Name;
+            const playing = (status === 'playing');
+            document.getElementById('readyCard').style.display = (hasBoth && !playing) ? 'block' : 'none';
+            document.getElementById('timerCard').style.display = playing ? 'none' : 'block';
+        }
+
+        function updateReadyUI(ownerReady, player2Ready) {
+            document.getElementById('p1Status').textContent = ownerReady ? '已准备 ✓' : '';
+            document.getElementById('p2Status').textContent = player2Ready ? '已准备 ✓' : '';
+            myReady = isOwner ? ownerReady : player2Ready;
+            const btn = document.getElementById('readyBtn');
+            btn.textContent = myReady ? '取消准备' : '准备';
+            if (myReady) {
+                btn.classList.add('btn-ready-done');
+            } else {
+                btn.classList.remove('btn-ready-done');
+            }
+        }
+
+        function renderTurnMark() {
+            const p1 = document.getElementById('p1Status');
+            const p2 = document.getElementById('p2Status');
+            if (roomStatus !== 'playing' || winner || !currentTurn) return;
+            p1.textContent = '';
+            p2.textContent = '';
+            p1.className = 'ready-status';
+            p2.className = 'ready-status';
+
+            if (currentTurn === ownerName) {
+                if (isOwner) {
+                    p1.textContent = '轮到你了';
+                    p1.className = 'turn-status';
+                } else {
+                    p1.textContent = '对方行动';
+                    p1.className = 'opp-status';
+                }
+            } else if (currentTurn === player2Name) {
+                if (isOwner) {
+                    p2.textContent = '对方行动';
+                    p2.className = 'opp-status';
+                } else {
+                    p2.textContent = '轮到你了';
+                    p2.className = 'turn-status';
+                }
+            }
+        }
+
+        function renderTurn(owner, p2, turn) {
+            ownerName = owner || '';
+            player2Name = p2 || '';
+            currentTurn = turn || '';
+            if (!player2Name) {
+                document.getElementById('turnInfo').textContent = '-';
+                return;
+            }
+            document.getElementById('turnInfo').textContent =
+                (currentTurn === player2Name) ? '白棋落子' : '黑棋落子';
+            renderTurnMark();
+        }
+
+        function updateActionButtons() {
+            const wrap = document.getElementById('actionWrap');
+            if (!wrap) return;
+            const show = (roomStatus === 'playing' && !winner);
+            wrap.style.display = show ? 'flex' : 'none';
+            wrap.style.flexDirection = 'column';
+            if (!show) return;
+
+            const undoBtn = document.getElementById('undoBtn');
+            const isMyTurn = (currentTurn === nickname);
+            const disabled = isMyTurn || undoLocked || !!undoPendingBy;
+            undoBtn.disabled = disabled;
+            if (disabled) {
+                undoBtn.classList.add('btn-disabled');
+            } else {
+                undoBtn.classList.remove('btn-disabled');
+            }
+            undoBtn.textContent = '悔棋';
+        }
+
+        function requestUndo() {
+            const btn = document.getElementById('undoBtn');
+            if (!btn || btn.disabled) return;
+            if (!wsReady()) { alert('连接已断开，请稍候重试'); return; }
+            sfxClick();
+            ws.send(JSON.stringify({ action: 'undo_request' }));
+        }
+
+        function requestSurrender() {
+            if (!wsReady()) { alert('连接已断开，请稍候重试'); return; }
+            sfxClick();
+            showModal('投降', '确定投降吗？投降将立即判负。', () => {
+                if (!wsReady()) { alert('连接已断开，请稍候重试'); return; }
+                ws.send(JSON.stringify({ action: 'surrender' }));
+            }, {
+                force: true,
+                confirmText: '确定投降',
+                onCancel: () => {},
+                cancelText: '取消'
+            });
+        }
+
+        function showUndoRequestModal(byName, seconds) {
+            let left = seconds;
+            const base = '对手请求悔棋，是否同意？';
+            sfxNotify();
+            showModal('悔棋请求', base + '\n（' + left + ' 秒后自动拒绝）', () => {
+                if (wsReady()) {
+                    ws.send(JSON.stringify({ action: 'undo_response', accept: true }));
+                }
+            }, {
+                confirmText: '同意',
+                onCancel: () => {
+                    if (wsReady()) {
+                        ws.send(JSON.stringify({ action: 'undo_response', accept: false }));
+                    }
+                },
+                cancelText: '拒绝'
+            });
+            if (undoCountdownTimer) clearInterval(undoCountdownTimer);
+            undoCountdownTimer = setInterval(() => {
+                left--;
+                if (left < 0) {
+                    clearInterval(undoCountdownTimer);
+                    undoCountdownTimer = null;
+                    return;
+                }
+                document.getElementById('modalText').textContent = base + '\n（' + left + ' 秒后自动拒绝）';
+            }, 1000);
+        }
+
+        function stopUndoCountdown() {
+            if (undoCountdownTimer) {
+                clearInterval(undoCountdownTimer);
+                undoCountdownTimer = null;
+            }
+        }
+
+        function toggleReady() {
+            if (!wsReady()) return;
+            myReady = !myReady;
+            sfxClick();
+            ws.send(JSON.stringify({ action: 'ready', ready: myReady }));
+        }
+
+        function leaveRoom(e) {
+            e.preventDefault();
+            selfLeaving = true;
+            const go = () => { window.location.href = '/game_wzq/gobang/'; };
+            if (wsReady()) {
+                ws.send(JSON.stringify({ action: 'leave' }));
+                setTimeout(go, 300);
+            } else {
+                go();
+            }
+        }
+
+        canvas.addEventListener('click', (e) => {
+            if (roomStatus !== 'playing' || winner) return;
+            if (currentTurn !== nickname) return;
+            if (undoPendingBy) return;
+            if (!wsReady()) return;
+            const rect = canvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+            const x = Math.round((mx - PADDING) / CELL_SIZE);
+            const y = Math.round((my - PADDING) / CELL_SIZE);
+            if (x < 0 || x >= BOARD_SIZE || y < 0 || y >= BOARD_SIZE) return;
+            if (board[x][y] !== 0) return;
+            ws.send(JSON.stringify({ action: 'move', x: x, y: y }));
+        });
+
+        function showGameOver() {
+            if (gameOverShown) return;
+            gameOverShown = true;
+            stopUndoCountdown();
+            stopMoveTimer();
+            let text = '';
+            if (winner === 'draw') {
+                text = '平局，棋盘已满';
+                sfxDraw();
+            } else if (winner === nickname) {
+                if (overReason === 'surrender') text = '对手认输，你获胜！';
+                else if (overReason === 'timeout') text = '对手超时，你获胜！';
+                else text = '恭喜，你赢了！';
+                sfxWin();
+            } else {
+                if (overReason === 'surrender') text = '你已认输';
+                else if (overReason === 'timeout') text = '你已超时判负';
+                else text = '游戏结束，' + winner + ' 胜利';
+                sfxLose();
+            }
+            showModal('游戏结束', text, () => {
+                if (wsReady()) {
+                    ws.send(JSON.stringify({ action: 'reset_game' }));
+                }
+            }, { force: true });
+        }
+
+        function connectWebSocket() {
+            ws = new WebSocket((location.protocol === 'https:' ? 'wss' : 'ws') + '://' + location.host + '/ws/game_wzq/gobang/room/' + roomId + '/');
+
+            ws.onopen = () => {
+                console.log('WebSocket 已连接');
+                ws.send(JSON.stringify({ action: 'enter' }));
+                if (pingTimer) clearInterval(pingTimer);
+                pingTimer = setInterval(() => {
+                    if (wsReady()) {
+                        ws.send(JSON.stringify({ action: 'ping' }));
+                    }
+                }, 10000);
+                if (syncTimer) clearInterval(syncTimer);
+                syncTimer = setInterval(() => {
+                    if (wsReady()) {
+                        ws.send(JSON.stringify({ action: 'sync_state' }));
+                    }
+                }, 5000);
+            };
+
+            ws.onmessage = (e) => {
+                const data = JSON.parse(e.data);
+                console.log('收到消息:', data);
+
+                switch (data.action) {
+                    case 'room_state':
+                        applyRoomState(data);
+                        break;
+                    case 'player_joined':
+                        onPlayerJoined(data);
+                        break;
+                    case 'ready_update':
+                        updateReadyUI(data.owner_ready === '1', data.player2_ready === '1');
+                        break;
+                    case 'opponent_lost':
+                        if (data.nickname === nickname) break;
+                        opponentLost = true;
+                        document.getElementById('waitingText').style.display = 'block';
+                        document.getElementById('waitingText').textContent = '对手已断线';
+                        break;
+                    case 'opponent_reconnected':
+                        opponentLost = false;
+                        statusToast = (data.nickname === nickname) ? '你已重新连接' : '对手已重新连接';
+                        document.getElementById('waitingText').style.display = 'block';
+                        document.getElementById('waitingText').textContent = statusToast;
+                        if (toastTimer) clearTimeout(toastTimer);
+                        toastTimer = setTimeout(refreshToastDone, 2000);
+                        break;
+                    case 'game_start':
+                        onGameStart(data);
+                        break;
+                    case 'move_made':
+                        onMoveMade(data);
+                        break;
+                    case 'undo_request':
+                        onUndoRequest(data);
+                        break;
+                    case 'undo_done':
+                        onUndoDone(data);
+                        break;
+                    case 'undo_rejected':
+                        onUndoRejected(data);
+                        break;
+                    case 'game_over':
+                        onGameOver(data);
+                        break;
+                    case 'game_reset':
+                        onGameReset(data);
+                        break;
+                    case 'opponent_left':
+                        onOpponentLeft(data);
+                        break;
+                    case 'room_expired':
+                        showModal('等待超时', data.message || '等待超时，房间已解散', () => {
+                            window.location.href = '/game_wzq/gobang/';
+                        }, { force: true });
+                        break;
+                    case 'room_closed':
+                        if (selfLeaving) break;
+                        showModal('房间已解散', data.message, () => {
+                            window.location.href = '/game_wzq/gobang/';
+                        }, { force: true });
+                        break;
+                    case 'room_force_closed':
+                        showModal('对局异常结束', data.message, () => {
+                            window.location.href = '/game_wzq/gobang/';
+                        }, { force: true });
+                        break;
+                    case 'error':
+                        showModal('提示', data.message || '无法进入房间', () => {
+                            window.location.href = '/game_wzq/gobang/';
+                        }, { force: true });
+                        break;
+                }
+
+                updateActionButtons();
+            };
+
+            ws.onclose = (e) => {
+                console.log('WebSocket 已断开');
+                if (pingTimer) clearInterval(pingTimer);
+                if (syncTimer) clearInterval(syncTimer);
+                if (e && e.code === 4003) return;
+                setTimeout(() => {
+                    if (!document.hidden) connectWebSocket();
+                }, 1500);
+            };
+
+            ws.onerror = (e) => {
+                console.error('WebSocket 错误:', e);
+            };
+        }
+
+        function applyRoomState(data) {
+            ownerName = data.owner || '';
+            player2Name = data.player2 || '';
+            const currentTurnVal = data.current_turn || '';
+            roomStatus = data.status || 'waiting';
+            winner = data.winner || '';
+            overReason = data.over_reason || '';
+            undoPendingBy = data.undo_pending || '';
+            undoLocked = isOwner ? (data.undo_lock_owner === '1') : (data.undo_lock_player2 === '1');
+
+            loadBoardFromStr(data.board || '');
+            setLastFromData(data.last_x, data.last_y);
+            renderStones();
+
+            const iAmIn = (ownerName === nickname || player2Name === nickname);
+
+            if (roomStatus === 'playing') {
+                stopCountdown();
+                clearReadyMarkers();
+                updatePanels(player2Name, 'playing');
+                if (!opponentLost) {
+                    document.getElementById('waitingText').style.display = 'block';
+                    setWaitingText('对局进行中');
+                }
+                if (isOwner) {
+                    playerRole = 'black';
+                    document.getElementById('player1Name').textContent = ownerName + '（你）';
+                    document.getElementById('player2Name').textContent = player2Name;
+                } else {
+                    playerRole = 'white';
+                    document.getElementById('player1Name').textContent = ownerName;
+                    document.getElementById('player2Name').textContent = player2Name + '（你）';
+                }
+                renderTurn(ownerName, player2Name, currentTurnVal);
+                applyMoveTimer(data.move_left || 0);
+                // 动画进行中就不抢着弹窗，等动画放完自己弹
+                if (winner && iAmIn && !winAnim) showGameOver();
+                return;
+            }
+
+            const prevStatus = roomStatus;
+            if (data.ttl && !(countdownTimer && prevStatus === roomStatus)) startCountdown(data.ttl);
+            updateReadyUI(data.owner_ready === '1', data.player2_ready === '1');
+            updatePanels(player2Name, roomStatus);
+            stopMoveTimer();
+
+            if (player2Name) {
+                gameState = 'playing';
+                document.getElementById('waitingText').style.display = 'none';
+                if (isOwner) {
+                    playerRole = 'black';
+                    document.getElementById('player1Name').textContent = ownerName + '（你）';
+                    document.getElementById('player2Name').textContent = player2Name;
+                } else {
+                    playerRole = 'white';
+                    document.getElementById('player1Name').textContent = ownerName;
+                    document.getElementById('player2Name').textContent = player2Name + '（你）';
+                }
+                renderTurn(ownerName, player2Name, currentTurnVal);
+            } else {
+                gameState = 'waiting';
+                document.getElementById('waitingText').style.display = 'block';
+                if (!opponentLost) {
+                    document.getElementById('waitingText').textContent = '等待对手加入...';
+                }
+                document.getElementById('player1Name').textContent = isOwner ? (ownerName + '（你）') : ownerName;
+                document.getElementById('player2Name').textContent = '等待加入...';
+                document.getElementById('turnInfo').textContent = '-';
+            }
+        }
+
+        function onPlayerJoined(data) {
+            ownerName = data.owner || '';
+            player2Name = data.player2 || data.nickname || '';
+            const currentTurnVal = data.current_turn || '';
+            opponentLost = false;
+            roomStatus = 'full';
+            winner = '';
+            overReason = '';
+            gameOverShown = false;
+            undoPendingBy = '';
+            undoLocked = false;
+            winAnim = null;
+            initBoard();
+            renderStones();
+            stopMoveTimer();
+            if (data.ttl) startCountdown(data.ttl);
+            updateReadyUI(data.owner_ready === '1', data.player2_ready === '1');
+            updatePanels(player2Name, roomStatus);
+            sfxJoin();
+
+            if (!statusToast) {
+                document.getElementById('waitingText').style.display = 'none';
+            }
+
+            if (isOwner) {
+                playerRole = 'black';
+                document.getElementById('player1Name').textContent = ownerName + '（你）';
+                document.getElementById('player2Name').textContent = player2Name;
+            } else {
+                playerRole = 'white';
+                document.getElementById('player1Name').textContent = ownerName;
+                document.getElementById('player2Name').textContent = player2Name + '（你）';
+            }
+            renderTurn(ownerName, player2Name, currentTurnVal);
+        }
+
+        function onGameStart(data) {
+            document.getElementById('modal').classList.remove('active');
+            window._modalCallback = null;
+            window._modalCallback2 = null;
+
+            roomStatus = 'playing';
+            winner = '';
+            overReason = '';
+            gameOverShown = false;
+            undoPendingBy = '';
+            undoLocked = false;
+            winAnim = null;
+            ownerName = data.owner || '';
+            player2Name = data.player2 || '';
+            initBoard();
+            renderStones();
+            updatePanels(player2Name, 'playing');
+            stopCountdown();
+            clearReadyMarkers();
+            document.getElementById('waitingText').style.display = 'block';
+            const first = data.current_turn || ownerName;
+            document.getElementById('waitingText').textContent =
+                (first === ownerName) ? '对局开始，黑棋先行！' : '对局开始，白棋先行！';
+            if (isOwner) {
+                playerRole = 'black';
+                document.getElementById('player1Name').textContent = ownerName + '（你）';
+                document.getElementById('player2Name').textContent = player2Name;
+            } else {
+                playerRole = 'white';
+                document.getElementById('player1Name').textContent = ownerName;
+                document.getElementById('player2Name').textContent = player2Name + '（你）';
+            }
+            renderTurn(ownerName, player2Name, first);
+            applyMoveTimer(data.move_left || 0);
+            sfxStart();
+        }
+
+        function onMoveMade(data) {
+            board[data.x][data.y] = data.color;
+            setLastFromData(data.last_x, data.last_y);
+            renderStones();
+            sfxPlace(data.color);
+            currentTurn = data.next_turn || '';
+            winner = data.winner || '';
+            overReason = '';
+            undoLocked = false;
+            renderTurn(ownerName, player2Name, currentTurn);
+
+            if (winner) {
+                stopMoveTimer();
+                // 只有五连获胜才有连线可画；平局/投降/超时直接弹窗
+                const cells = (winner === 'draw') ? null : findWinCells(board, data.x, data.y);
+                if (cells && cells.length >= 5) {
+                    startWinAnimation(cells);
+                } else {
+                    showGameOver();
+                }
+            } else {
+                applyMoveTimer(data.move_left || 0);
+            }
+        }
+
+        function onUndoRequest(data) {
+            undoPendingBy = data.by || '';
+            stopMoveTimer();
+            if (data.by === nickname) {
+                showToast('已请求悔棋，等待对方响应', 8);
+            } else {
+                showUndoRequestModal(data.by, data.seconds || 8);
+            }
+        }
+
+        function onUndoDone(data) {
+            stopUndoCountdown();
+            undoPendingBy = '';
+            undoLocked = false;
+            document.getElementById('modal').classList.remove('active');
+            window._modalCallback = null;
+            window._modalCallback2 = null;
+            sfxPlace(2);
+
+            loadBoardFromStr(data.board || '');
+            setLastFromData(data.last_x, data.last_y);
+            renderStones();
+            currentTurn = data.current_turn || '';
+            winner = '';
+            overReason = '';
+            renderTurn(ownerName, player2Name, currentTurn);
+            applyMoveTimer(data.move_left || 0);
+
+            if (data.by === nickname) {
+                showToast('对方同意悔棋，轮到你了', 3);
+            } else {
+                showToast('您已同意悔棋', 3);
+            }
+        }
+
+        function onUndoRejected(data) {
+            stopUndoCountdown();
+            undoPendingBy = '';
+            if (data.by === nickname) {
+                undoLocked = true;
+                showToast(data.reason === 'timeout' ? '对方未响应，悔棋已取消' : '对方拒绝了悔棋请求', 3);
+            }
+            applyMoveTimer(data.move_left || 0);
+        }
+
+        function onGameOver(data) {
+            winner = data.winner || '';
+            overReason = data.reason || '';
+            undoPendingBy = '';
+            currentTurn = '';
+            stopUndoCountdown();
+            stopMoveTimer();
+            showGameOver();
+        }
+
+        function onGameReset(data) {
+            stopUndoCountdown();
+            stopMoveTimer();
+            winAnim = null;
+
+            winner = '';
+            overReason = '';
+            gameOverShown = false;
+            undoPendingBy = '';
+            undoLocked = false;
+            initBoard();
+            renderStones();
+            clearReadyMarkers();
+            updateReadyUI(false, false);
+            ownerName = data.owner || '';
+            player2Name = data.player2 || '';
+            roomStatus = data.status || 'waiting';
+            updatePanels(player2Name, roomStatus);
+            if (data.ttl) startCountdown(data.ttl);
+            document.getElementById('waitingText').style.display = 'block';
+            document.getElementById('waitingText').textContent = '等待双方准备...';
+            renderTurn(ownerName, player2Name, data.current_turn || '');
+        }
+
+        function onOpponentLeft(data) {
+            stopUndoCountdown();
+            stopMoveTimer();
+            winAnim = null;
+            opponentLost = false;
+            gameState = 'waiting';
+            roomStatus = 'waiting';
+            myReady = false;
+            winner = '';
+            overReason = '';
+            gameOverShown = false;
+            undoPendingBy = '';
+            undoLocked = false;
+            initBoard();
+            renderStones();
+            clearReadyMarkers();
+            updateReadyUI(false, false);
+            updatePanels('', 'waiting');
+            if (data.ttl) startCountdown(data.ttl);
+            document.getElementById('waitingText').style.display = 'block';
+            document.getElementById('waitingText').textContent = '对手已离开';
+            document.getElementById('player2Name').textContent = '等待加入...';
+            document.getElementById('turnInfo').textContent = '-';
+        }
+
+        function showModal(title, text, onConfirm, opts) {
+            opts = opts || {};
+            const modal = document.getElementById('modal');
+            if (!opts.force && modal.classList.contains('active')) {
+                return;
+            }
+            const btn = document.getElementById('modalBtn');
+            const btn2 = document.getElementById('modalBtn2');
+            btn.textContent = opts.confirmText || '确定';
+            if (opts.onCancel) {
+                btn2.style.display = 'inline-block';
+                btn2.textContent = opts.cancelText || '取消';
+            } else {
+                btn2.style.display = 'none';
+            }
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalText').textContent = text;
+            modal.classList.add('active');
+            window._modalCallback = onConfirm;
+            window._modalCallback2 = opts.onCancel || null;
+        }
+
+        function handleModalConfirm() {
+            stopUndoCountdown();
+            document.getElementById('modal').classList.remove('active');
+            const cb = window._modalCallback;
+            window._modalCallback = null;
+            window._modalCallback2 = null;
+            sfxClick();
+            try {
+                if (cb) cb();
+            } catch (err) {
+                console.error('弹窗回调出错:', err);
+            }
+        }
+
+        function handleModalCancel() {
+            stopUndoCountdown();
+            document.getElementById('modal').classList.remove('active');
+            const cb = window._modalCallback2;
+            window._modalCallback = null;
+            window._modalCallback2 = null;
+            sfxClick();
+            try {
+                if (cb) cb();
+            } catch (err) {
+                console.error('弹窗回调出错:', err);
+            }
+        }
+
+        // 初始化音效按钮显示状态
+        (function initSoundBtn() {
+            const btn = document.getElementById('soundBtn');
+            btn.textContent = soundOn ? '🔊' : '🔇';
+            btn.classList.toggle('off', !soundOn);
+        })();
+
+        initBoard();
+        resizeBoard();
+        connectWebSocket();
+
+        window.addEventListener('resize', () => {
+            clearTimeout(window._resizeTimer);
+            window._resizeTimer = setTimeout(resizeBoard, 150);
+        });
+        if (mqNarrow.addEventListener) {
+            mqNarrow.addEventListener('change', () => setTimeout(resizeBoard, 150));
+        }
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                if (wsReady()) {
+                    ws.close();
+                }
+            } else {
+                if (!wsReady()) {
+                    connectWebSocket();
+                }
+            }
+        });
+
+        if (isOwner) {
+            document.getElementById('player1Name').textContent = nickname + '（你）';
+        }
+    </script>
+
+    <script>
+    setInterval(function() {
+        fetch('/api/check-status/')
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'kicked') {
+                    fetch('/game_wzq/gobang/force_leave/', { method: 'POST' })
+                        .finally(() => {
+                            alert('您已被管理员删除，请重新注册');
+                            window.location.href = '/';
+                        });
+                }
+            })
+            .catch(() => {});
+    }, 3000);
+    </script>
+</body>
+</html>

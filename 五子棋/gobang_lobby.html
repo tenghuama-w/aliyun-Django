@@ -1,0 +1,305 @@
+/root/HelloWorld/game_wuziqi/templates/game_wuziqi/gobang_lobby.html
+
+<!-- 大厅 + 房间列表自动刷新（象棋这功能是照它抄的） -->
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="color-scheme" content="only light">
+    <title>五子棋 - 匹配大厅</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #fff;
+        }
+        .navbar {
+            background: rgba(0,0,0,0.3);
+            padding: 15px 30px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        .navbar a { color: #aaa; text-decoration: none; font-size: 14px; }
+        .navbar a:hover { color: #fff; }
+        .navbar .logo { font-size: 20px; font-weight: bold; color: #e94560; margin-right: auto; }
+        .container { max-width: 800px; margin: 40px auto; padding: 0 20px; }
+        .section {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 30px;
+        }
+        .section h2 { font-size: 18px; margin-bottom: 20px; color: #e94560; display: flex; align-items: center; gap: 10px; }
+        .live-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: #2ecc71; flex-shrink: 0;
+            animation: blink 1.6s infinite;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.25; }
+        }
+        .live-text { font-size: 12px; color: #2ecc71; font-weight: normal; }
+        .btn {
+            background: #e94560;
+            color: #fff;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        .btn:hover { background: #ff6b81; }
+        .btn:disabled { background: #555; cursor: not-allowed; }
+        .join-form {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .join-form input {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: #fff;
+            padding: 12px 15px;
+            border-radius: 8px;
+            font-size: 16px;
+            width: 150px;
+            text-align: center;
+            letter-spacing: 3px;
+        }
+        .join-form input::placeholder { color: #666; letter-spacing: normal; }
+        .rooms-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .rooms-table th {
+            text-align: left;
+            padding: 12px;
+            color: #888;
+            font-size: 13px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .rooms-table td {
+            padding: 15px 12px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .status {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status-waiting { background: rgba(46,204,113,0.2); color: #2ecc71; }
+        .status-full { background: rgba(231,76,60,0.2); color: #e74c3c; }
+        .status-playing { background: rgba(149,165,166,0.2); color: #95a5a6; }
+        .join-btn {
+            background: rgba(233,69,96,0.2);
+            color: #e94560;
+            border: 1px solid #e94560;
+            padding: 6px 18px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .join-btn:hover { background: #e94560; color: #fff; }
+        .empty-tip { color: #666; text-align: center; padding: 20px; font-size: 14px; }
+        .user-info { color: #888; font-size: 13px; }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <span class="logo">⚫ 五子棋</span>
+        <a href="/game_wzq/">← 返回娱乐大厅</a>
+        <span class="user-info" style="margin-left:auto;">玩家：{{ nickname }}</span>
+    </div>
+
+    <div class="container">
+        <!-- 创建/加入房间（不参与刷新，避免点击被打断） -->
+        <div class="section">
+            <h2>创建或加入房间</h2>
+            <div style="display:flex; gap:30px; align-items:center; flex-wrap:wrap;">
+                <button class="btn" onclick="createRoom()">🎯 创建房间</button>
+                <div class="join-form">
+                    <input type="text" id="roomInput" placeholder="输入房间号" maxlength="4" pattern="\d*" autocomplete="off">
+                    <button class="btn" onclick="joinRoom()">加入房间</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 房间列表（自动刷新） -->
+        <div class="section">
+            <h2>
+                当前开放房间
+                <span class="live-dot"></span>
+                <span class="live-text">自动刷新中</span>
+            </h2>
+            <table class="rooms-table">
+                <thead>
+                    <tr>
+                        <th>房间号</th>
+                        <th>房主</th>
+                        <th>状态</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="roomsBody">
+                    {% for room in rooms %}
+                    <tr>
+                        <td style="font-size:18px; font-weight:bold; letter-spacing:2px;">{{ room.room_id }}</td>
+                        <td>{{ room.owner }}</td>
+                        <td>
+                            {% if room.status == 'waiting' %}
+                                <span class="status status-waiting">🟢 等待中</span>
+                            {% else %}
+                                <span class="status status-playing">⚫ 已开始</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if room.status == 'waiting' %}
+                                <button class="join-btn" onclick="joinSpecificRoom('{{ room.room_id }}')">加入</button>
+                            {% else %}
+                                <span class="status status-full">🔴 已满员</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="4" class="empty-tip">暂无开放房间</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        let joining = false;      // 正在加入房间时暂停刷新
+        let lastSignature = '';   // 列表指纹，没变化就不重绘
+
+        function renderRooms(rooms) {
+            const tbody = document.getElementById('roomsBody');
+            if (!rooms || rooms.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="empty-tip">暂无开放房间</td></tr>';
+                return;
+            }
+            let html = '';
+            rooms.forEach(room => {
+                const waiting = (room.status === 'waiting');
+                const statusHtml = waiting
+                    ? '<span class="status status-waiting">🟢 等待中</span>'
+                    : '<span class="status status-playing">⚫ 已开始</span>';
+                const actionHtml = waiting
+                    ? '<button class="join-btn" onclick="joinSpecificRoom(\'' + room.room_id + '\')">加入</button>'
+                    : '<span class="status status-full">🔴 已满员</span>';
+                html += '<tr>' +
+                    '<td style="font-size:18px; font-weight:bold; letter-spacing:2px;">' + room.room_id + '</td>' +
+                    '<td>' + room.owner + '</td>' +
+                    '<td>' + statusHtml + '</td>' +
+                    '<td>' + actionHtml + '</td>' +
+                    '</tr>';
+            });
+            tbody.innerHTML = html;
+        }
+
+        function refreshRooms() {
+            if (joining) return;                 // 加入过程中不刷新，避免按钮被替换
+            if (document.hidden) return;         // 页面在后台不刷新
+            fetch('/game_wzq/gobang/api/rooms/')
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.ok) return;
+                    // 指纹相同则不重绘，避免闪烁和影响点击
+                    const sig = JSON.stringify(data.rooms);
+                    if (sig === lastSignature) return;
+                    lastSignature = sig;
+                    renderRooms(data.rooms);
+                })
+                .catch(() => {});
+        }
+
+        setInterval(refreshRooms, 3000);
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) refreshRooms();   // 切回前台立刻刷新一次
+        });
+
+        function createRoom() {
+            joining = true;
+            fetch('/game_wzq/gobang/create/', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        window.location.href = '/game_wzq/gobang/room/' + data.room_id + '/';
+                    } else {
+                        joining = false;
+                        alert(data.message || '创建失败');
+                    }
+                })
+                .catch(() => { joining = false; });
+        }
+
+        function joinRoom() {
+            const roomId = document.getElementById('roomInput').value.trim();
+            if (!roomId) { alert('请输入房间号'); return; }
+            if (!/^\d{4}$/.test(roomId)) { alert('房间号必须是4位数字'); return; }
+            connectAndJoin(roomId);
+        }
+
+        function joinSpecificRoom(roomId) {
+            connectAndJoin(roomId);
+        }
+
+        function connectAndJoin(roomId) {
+            joining = true;
+            const ws = new WebSocket((location.protocol === 'https:' ? 'wss' : 'ws') + '://' + location.host + '/ws/game_wzq/gobang/room/' + roomId + '/');
+            let joined = false;
+
+            ws.onopen = () => {
+                ws.send(JSON.stringify({ action: 'join' }));
+            };
+            ws.onmessage = (e) => {
+                const data = JSON.parse(e.data);
+                if (data.action === 'joined') {
+                    joined = true;
+                    ws.close();
+                    window.location.href = '/game_wzq/gobang/room/' + roomId + '/';
+                } else if (data.action === 'error') {
+                    alert(data.message);
+                    ws.close();
+                    joining = false;
+                    lastSignature = '';      // 强制下次刷新
+                    refreshRooms();
+                }
+            };
+            ws.onerror = () => {
+                if (!joined) {
+                    alert('连接服务器失败，请确认Daphne是否运行');
+                    joining = false;
+                }
+            };
+        }
+
+        // 只允许输入数字
+        document.getElementById('roomInput').addEventListener('input', function() {
+            this.value = this.value.replace(/[^0-9]/g, '');
+        });
+    </script>
+
+    <script>
+    setInterval(function() {
+        fetch('/api/check-status/')
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'kicked') {
+                    alert('您已被管理员删除，请重新注册');
+                    window.location.href = '/';
+                }
+            })
+            .catch(() => {});
+    }, 3000);
+    </script>
+</body>
+</html>

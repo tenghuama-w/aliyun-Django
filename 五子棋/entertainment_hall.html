@@ -1,0 +1,155 @@
+/root/HelloWorld/game_wuziqi/templates/game_wuziqi/entertainment_hall.html
+
+<!-- 娱乐厅入口页 -->
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>娱乐大厅</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #fff;
+        }
+        .navbar {
+            background: rgba(0,0,0,0.3);
+            padding: 15px 30px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        .navbar a {
+            color: #aaa;
+            text-decoration: none;
+            font-size: 14px;
+            transition: color 0.3s;
+        }
+        .navbar a:hover { color: #fff; }
+        .navbar .logo {
+            font-size: 20px;
+            font-weight: bold;
+            color: #e94560;
+            margin-right: auto;
+        }
+        .container {
+            max-width: 900px;
+            margin: 60px auto;
+            padding: 0 20px;
+        }
+        .page-title {
+            text-align: center;
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+        .page-subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 50px;
+            font-size: 14px;
+        }
+        .games-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 25px;
+        }
+        .game-card {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            color: #fff;
+            display: block;
+        }
+        .game-card:hover {
+            background: rgba(233,69,96,0.15);
+            border-color: #e94560;
+            transform: translateY(-5px);
+        }
+        .game-card .icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        .game-card .name {
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .game-card.placeholder {
+            opacity: 0.3;
+            cursor: default;
+            pointer-events: none;
+        }
+        .game-card.placeholder:hover {
+            transform: none;
+            background: rgba(255,255,255,0.05);
+            border-color: rgba(255,255,255,0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <span class="logo">🎮 娱乐中心</span>
+        <a href="/">← 返回主页</a>
+    </div>
+
+    <div class="container">
+        <h1 class="page-title">选择游戏</h1>
+        <p class="page-subtitle">更多精彩游戏即将上线</p>
+
+        <div class="games-grid">
+            <a href="/game_wzq/gobang/" class="game-card">
+                <div class="icon">⚫</div>
+                <div class="name">五子棋</div>
+            </a>
+            <a href="/game_Cchess/Cchess/" class="game-card">
+                <div class="icon">
+                    <svg width="56" height="56" viewBox="0 0 48 48">
+                        <circle cx="24" cy="24" r="21" fill="#f7e7c8" stroke="#c0392b" stroke-width="2.5"/>
+                        <circle cx="24" cy="24" r="17" fill="none" stroke="#c0392b" stroke-width="1.2"/>
+                        <text x="24" y="32" text-anchor="middle"
+                            font-size="24" font-weight="bold" fill="#c0392b"
+                            font-family="PingFang SC, Microsoft YaHei, serif">帥</text>
+                    </svg>
+                </div>
+                <div class="name">中国象棋</div>
+            </a>
+            <div class="game-card placeholder">
+                <div class="icon">🏠</div>
+                <div class="name">敬请期待</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 检查是否有昵称，没有则弹窗拦截
+        fetch('/game_wzq/check_nickname/')
+            .then(r => r.json())
+            .then(data => {
+                if (!data.has_nickname) {
+                    alert('请先在留言板留言设置昵称！');
+                    window.location.href = '/';
+                }
+            });
+    </script>
+    <script>
+    setInterval(function() {
+        fetch('/api/check-status/')
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'kicked') {
+                    alert('您已被管理员删除，请重新注册');
+                    window.location.href = '/';
+                }
+            })
+            .catch(() => {});
+    }, 3000);
+    </script>
+</body>
+</html>
